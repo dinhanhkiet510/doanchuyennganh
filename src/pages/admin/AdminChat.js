@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import io from "socket.io-client";
 import axios from "axios";
 
-const socket = io("http://localhost:5000");
+const socket = io("https://speakerstore1.onrender.com");
 
 export default function AdminChat() {
   const [customers, setCustomers] = useState([]);
@@ -64,7 +64,7 @@ export default function AdminChat() {
   // Lấy danh sách khách hàng
   useEffect(() => {
     axios
-      .get("http://localhost:5000/customers")
+      .get("https://speakerstore1.onrender.com/customers")
       .then((res) => setCustomers(res.data))
       .catch((err) => console.error("❌ Lấy khách hàng lỗi:", err));
   }, []);
@@ -74,7 +74,7 @@ export default function AdminChat() {
     setSelectedCustomer(customer);
     try {
       const res = await axios.get(
-        `http://localhost:5000/messages/${customer.id}`
+        `https://speakerstore1.onrender.com/messages/${customer.id}`
       );
       setMessages(
         res.data.map((msg) => ({

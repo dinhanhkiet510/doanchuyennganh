@@ -3,6 +3,7 @@ const passport = require('passport');
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
+const bcrypt = require("bcryptjs");
 const nodemailer = require("nodemailer");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const FacebookStrategy = require("passport-facebook").Strategy;
@@ -16,24 +17,13 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 // Middleware
 const app = express();
 const PORT = 5000;
+
 app.use(bodyParser.json());
-
-const allowedOrigins = [
-  "http://localhost:3000",
-  "https://doanchuyennganh.vercel.app"
-];
-
 app.use(cors({
-  origin: function(origin, callback){
-    if(!origin) return callback(null, true); // Postman/Non-browser requests
-    if(allowedOrigins.indexOf(origin) === -1){
-      const msg = `The CORS policy for this site does not allow access from the specified Origin.`;
-      return callback(new Error(msg), false);
-    }
-    return callback(null, true);
-  },
+  origin: ["http://localhost:3000",
+  "https://doanchuyennganh.vercel.app"], // frontend deploy trên Vercel
   credentials: true
-}));
+}));  
 app.use(session({
   secret: "secretKey",
   resave: false,
@@ -48,10 +38,10 @@ app.use(passport.session());
 
 // Kết nối MySQL
 const db = mysql.createConnection({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME
+  host: "https://speakerstore.onrender.com",
+  user: "root",
+  password: "",
+  database: "speaker_store"
 });
 
 db.connect((err) => {
@@ -88,14 +78,12 @@ passport.deserializeUser(async (id, done) => {
 });
 
 /**
- * --- GOOGLE LOGIN ---
+ * GOOGLE LOGIN
  */
-const googleCallbackURL = process.env.CALLBACK_URL_GOOGLE || "http://localhost:5000/auth/google/callback";
-
 passport.use(new GoogleStrategy({
   clientID: process.env.GOOGLE_CLIENT_ID,
   clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-  callbackURL: googleCallbackURL,
+  callbackURL: `${process.env.CALLBACK_URL}/google/callback`
 }, async (accessToken, refreshToken, profile, done) => {
   try {
     const email = profile.emails[0].value;
@@ -119,6 +107,7 @@ passport.use(new GoogleStrategy({
     done(err, null);
   }
 }));
+
 /**
  * FACEBOOK LOGIN
  */
@@ -549,6 +538,60 @@ app.get("/customers", (req, res) => {
   });
 });
 
+// API lấy đơn hàng của khách
+app.get("/api/orders/my-orders/:customerId", (req, res) => {
+  const customerId = req.params.customerId;
+
+  const sql = `
+    SELECT 
+      o.id AS order_id,
+      o.customer_id,
+      c.name AS customer_name,
+      o.order_date,
+      o.status,
+      oi.product_id,
+      oi.name AS product_name,
+      oi.quantity,
+      oi.price,
+      p.img AS product_img
+    FROM orders o
+    JOIN order_items oi ON o.id = oi.order_id
+    JOIN products p ON oi.product_id = p.id
+    JOIN customers c ON o.customer_id = c.id
+    WHERE o.customer_id = ?
+    ORDER BY o.id DESC
+  `;
+
+  db.query(sql, [customerId], (err, results) => {
+    if (err) {
+      console.error("Lỗi truy vấn:", err);
+      return res.status(500).json({ error: "Lỗi server" });
+    }
+
+    // Gom nhóm sản phẩm cùng đơn hàng
+    const ordersMap = {};
+    results.forEach(row => {
+      if (!ordersMap[row.order_id]) {
+        ordersMap[row.order_id] = {
+          id: row.order_id,
+          customer_name: row.customer_name,
+          order_date: row.order_date,
+          status: row.status,
+          items: []
+        };
+      }
+      ordersMap[row.order_id].items.push({
+        product_id: row.product_id,
+        name: row.product_name,
+        quantity: row.quantity,
+        price: parseFloat(row.price),
+        img: row.product_img
+      });
+    });
+
+    res.json(Object.values(ordersMap));
+  });
+});
 
 
 // API lưu contact
@@ -1020,6 +1063,8 @@ app.get("/api/statistics/top-products", (req, res) => {
     res.json(results);
   });
 });
+
+
 
 // Khởi động server
 server.listen(PORT, () => {
