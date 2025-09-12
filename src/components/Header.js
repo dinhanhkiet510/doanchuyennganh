@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useContext } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { CartContext } from "../pages/CartContext";
-import { AuthContext } from "../AuthContext";
+import { AuthContext } from "../pages/AuthContext";
+
 function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -9,10 +10,16 @@ function Header() {
   const [suggestions, setSuggestions] = useState([]);
   const { totalQuantity } = useContext(CartContext);
   const { user, logout } = useContext(AuthContext);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const closeDropdown = () => setDropdownOpen(false);
+  const toggleDropdown = () => {
+    setDropdownOpen(!dropdownOpen);
+  };
   const navigate = useNavigate();
 
+  // Fetch product suggestions
   useEffect(() => {
-    if (searchTerm.trim() === "") {
+    if (!searchTerm.trim()) {
       setSuggestions([]);
       return;
     }
@@ -27,6 +34,7 @@ function Header() {
     navigate("/login");
   };
 
+
   return (
     <div className="header">
       <div className="logo">SPEAKER</div>
@@ -35,12 +43,31 @@ function Header() {
 
       <ul className={`nav ${menuOpen ? "show" : ""}`}>
         <li><Link to="/">HOME</Link></li>
-        <li className="dropdown">
-          <Link to="#">PRODUCT <i className="fas fa-angle-down"></i></Link>
+        <li
+          className={`dropdown ${dropdownOpen ? "open" : ""}`}
+          onMouseEnter={() => setDropdownOpen(true)}
+          onMouseLeave={() => setDropdownOpen(false)}
+        >
+          <Link to="#" className="dropdown-toggle" onClick={toggleDropdown}>
+            PRODUCT
+          </Link>
+
           <ul className="dropdown-menu">
-            <li><Link to="/products/category/2">SPEAKER</Link></li>
-            <li><Link to="/products/category/3">HEADPHONE</Link></li>
-            <li><Link to="/products/category/1">AMPS</Link></li>
+            <li>
+              <Link to="/products/category/2" onClick={closeDropdown}>
+                SPEAKER
+              </Link>
+            </li>
+            <li>
+              <Link to="/products/category/3" onClick={closeDropdown}>
+                HEADPHONE
+              </Link>
+            </li>
+            <li>
+              <Link to="/products/category/1" onClick={closeDropdown}>
+                AMPS
+              </Link>
+            </li>
           </ul>
         </li>
         <li><Link to="/about">ABOUT US</Link></li>
@@ -55,8 +82,16 @@ function Header() {
           </li>
         ) : (
           <li className="auth user-logout">
-            <span className="user-name"><i className="fas fa-user"></i> {user.name}</span>
-            <button onClick={handleLogout} className="btn-logout">Log out</button>
+            <Link
+              to="/profile" // chuyển sang trang profile
+              className="user-name text-decoration-none"
+              style={{ cursor: "pointer" }}
+            >
+              <i className="fas fa-user"></i> {user.name}
+            </Link>
+            <button onClick={handleLogout} className="btn-logout">
+              LOG OUT
+            </button>
           </li>
         )}
 

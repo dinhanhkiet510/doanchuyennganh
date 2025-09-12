@@ -38,6 +38,11 @@ export function CartProvider({ children }) {
     }
   };
 
+  // Xóa hết giỏ hàng
+  const clearCart = () => {
+    setCartItems([]);
+  };
+
   // Tính tổng số lượng sản phẩm
   const totalQuantity = cartItems.reduce((sum, item) => sum + item.quantity, 0);
 
@@ -50,6 +55,7 @@ export function CartProvider({ children }) {
       addToCart,
       removeFromCart,
       updateQuantity,
+      clearCart,          // <-- Đưa clearCart vào đây
       totalQuantity,
       totalPrice
     }}>

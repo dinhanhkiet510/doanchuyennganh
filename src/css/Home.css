@@ -101,12 +101,20 @@ body {
   transition: var(--transition);
 }
 
-.dropdown:hover .dropdown-menu,
-.dropdown:focus-within .dropdown-menu {
+.dropdown .dropdown-menu {
+  display: none;
+}
+
+.dropdown.open .dropdown-menu {
   display: block;
 }
 
-.auth i,
+
+.auth i{
+  margin-right: 5px;
+  color: var(--main-color);
+}
+
 .cart i {
   margin-right: 5px;
   color: var(--main-color);
@@ -305,6 +313,11 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+.homepage-banner{
+  margin-top: 58px;
+}
+
 
 /* Container li chứa user + logout */
 .auth.user-logout {
@@ -627,14 +640,279 @@ body {
   margin-bottom: 15px;
 }
 
+.nav-link:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
 
 
+.admin-sidebar {
+  background: linear-gradient(180deg, #212529, #343a40);
+  color: white;
+  min-height: 100vh;
+  padding: 20px;
+  width: 240px;
+  position: fixed;
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.3);
+}
+
+.admin-sidebar h5 {
+  font-weight: bold;
+  text-transform: uppercase;
+  font-size: 1rem;
+  letter-spacing: 1px;
+}
+
+.admin-link {
+  display: block;
+  padding: 10px 15px;
+  margin-bottom: 8px;
+  border-radius: 8px;
+  color: white;
+  text-decoration: none;
+  transition: all 0.3s ease;
+}
+
+.admin-link:hover {
+  background: #0d6efd;
+  color: #fff;
+  transform: translateX(5px);
+}
+
+.admin-link.active {
+  background: #0d6efd;
+  font-weight: bold;
+}
+
+.admin-logout-btn {
+  margin-top: 20px;
+  border-radius: 8px;
+  padding: 10px;
+  font-weight: bold;
+  transition: all 0.3s ease;
+}
+
+.admin-logout-btn:hover {
+  background: #bb2d3b;
+  transform: translateX(5px);
+}
 
 
+.speakerbanner .text-banner {
+  position: absolute;
+  bottom: 15px;
+  left: 30px;
+  font-size: 2rem;
+  font-weight: bold;
+  color: white;
+  text-shadow: 2px 2px 5px black;
+}
 
+.product-card {
+  background: #111;
+  padding: 15px;
+  border-radius: 10px;
+  overflow: hidden;
+  transition: transform 0.3s ease;
+}
+.product-card:hover {
+  transform: translateY(-5px);
+}
 
+.product-img-wrapper {
+  position: relative;
+  overflow: hidden;
+  border-radius: 8px;
+}
+.product-img {
+  transition: transform 0.4s ease;
+}
+.product-card:hover .product-img {
+  transform: scale(1.05);
+}
 
+.overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  opacity: 0;
+}
+.overlay .add-to-cart {
+  background: #ffcc00;
+  color: black;
+  padding: 8px 15px;
+  border-radius: 5px;
+  font-weight: bold;
+}
 
+.product-name {
+  font-size: 1rem;
+  color: white;
+}
+.product-price {
+  color: #ffcc00;
+  font-weight: bold;
+}
+
+/* Nút chung cho cả BUY NOW và Add to Cart */
+.btn-main {
+  background-color: #ff4d4f; /* Màu chính */
+  color: white;
+  border: none;
+  padding: 10px 18px;
+  font-size: 1rem;
+  font-weight: 500;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-main:hover {
+  background-color: #e63946; /* Màu khi hover */
+  transform: translateY(-2px);
+  box-shadow: 0px 4px 10px rgba(255, 77, 79, 0.4);
+}
+
+.btn-main:active {
+  transform: translateY(0px);
+  box-shadow: none;
+}
+
+.about-marshall {
+  font-family: 'Exo 2', sans-serif;
+  overflow-x: hidden;
+}
+
+/* Header */
+.header-section {
+  height: 100vh;
+}
+.header-img {
+  height: 100%;
+  object-fit: cover;
+}
+.header-section .overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.display-3{
+  color: black;
+}
+/* Section chung */
+.section {
+  height: 90vh;
+}
+.section-img {
+  height: 100%;
+  object-fit: cover;
+}
+.section .overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  text-align: center;
+}
+.section h2 {
+  color: #fff;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.chat-launcher {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background-color: #0d6efd;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+  z-index: 1000;
+}
+
+.chat-widget {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 360px;
+  height: 500px;
+  border-radius: 12px;
+  background-color: #fff;
+  border: 1px solid #ddd;
+  display: flex;
+  flex-direction: column;
+  z-index: 1000;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+}
+
+.chat-header {
+  background-color: #0d6efd;
+  color: #fff;
+  padding: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: bold;
+}
+
+.btn-mode {
+  background: #fff;
+  color: #0d6efd;
+  border: none;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.chat-messages {
+  flex: 1;
+  padding: 12px;
+  overflow-y: auto;
+  background: #f8f9fa;
+}
+
+.chat-input {
+  display: flex;
+  padding: 10px;
+  border-top: 1px solid #ddd;
+  background: #fff;
+}
+
+.chat-input input {
+  flex: 1;
+  margin-right: 8px;
+  border-radius: 4px;
+}
+
+.chat-input button {
+  border-radius: 4px;
+}
+
+.chat-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background-color: #6c757d;
+  color: #fff;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 12px;
+  margin-right: 6px;
+  flex-shrink: 0;
+}
 
 
 

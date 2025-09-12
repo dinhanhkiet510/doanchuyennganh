@@ -1,0 +1,52 @@
+.admin-chat-container {
+  height: 100vh;
+  background: #f1f3f5;
+}
+
+.sidebar {
+  width: 280px;
+  overflow-y: auto;
+  border-right: 1px solid #dee2e6;
+}
+
+.customer-item {
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.customer-item.active {
+  background-color: #0d6efd;
+  color: #fff;
+}
+
+.chat-area {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-messages {
+  background: #f5f5f5;
+  flex-grow: 1;
+  overflow-y: auto;
+}
+
+.message.admin-msg {
+  background-color: #0d6efd;
+  color: #fff;
+}
+
+.message.customer-msg {
+  background-color: #fff;
+  border: 1px solid #dee2e6;
+}
+
+.chat-input input {
+  border-radius: 4px;
+}
+
+.chat-input button {
+  border-radius: 4px;
+}
