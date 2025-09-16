@@ -8,7 +8,7 @@ const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const FacebookStrategy = require("passport-facebook").Strategy;
 const session = require('express-session');
 const MySQLStore = require('express-mysql-session')(session);
-const mysql = require('mysql2');
+const mysql = require("mysql2/promise");
 const http = require("http");
 const { Server } = require("socket.io");
 // Thêm thư viện Gemini
@@ -464,65 +464,57 @@ app.delete("/products/:id", (req, res) => {
 
 // API đăng nhập
 app.post("/login", async (req, res) => {
-  const { username, password } = req.body;
-  if (!username || !password) {
-    return res.status(400).json({ message: "Username and password are required" });
-  }
+    const { username, password } = req.body;
 
-  try {
-    // --- ADMIN ---
-    const [adminResults] = await db.execute(
-      "SELECT * FROM admin WHERE username = ? AND password_hash = ?",
-      [username, password]
-    );
+    let conn;
+    try {
+      conn = await getConnection();
 
-    if (adminResults.length > 0) {
-      req.session.user = {
-        id: adminResults[0].id,
-        name: adminResults[0].name || adminResults[0].username,
-        role: "admin"
-      };
-      req.session.save(err => {
-        if (err) {
-          console.error("Session save error (admin):", err);
-          return res.status(500).json({ error: "Session save error" });
-        }
+      // --- ADMIN ---
+      const [adminResults] = await conn.execute(
+        "SELECT id, name, username, password_hash FROM admin WHERE username = ? AND password_hash = ?",
+        [username, password]
+      );
+
+      if (adminResults.length > 0) {
+        req.session.user = {
+          id: adminResults[0].id,
+          name: adminResults[0].name || adminResults[0].username,
+          role: "admin"
+        };
+        await req.session.save();
+        await conn.end();
         return res.json({ role: "admin", user: req.session.user });
-      });
-      return;
-    }
+      }
 
-    // --- CUSTOMER ---
-    const [customerResults] = await db.execute(
-      "SELECT * FROM customers WHERE username = ? AND password = ?",
-      [username, password]
-    );
+      // --- CUSTOMER ---
+      const [customerResults] = await conn.execute(
+        "SELECT id, name, email, username, password FROM customers WHERE username = ? AND password = ?",
+        [username, password]
+      );
 
-    if (customerResults.length > 0) {
-      const user = customerResults[0];
-      req.session.user = {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        username: user.username,
-        provider: "local"
-      };
-      req.session.save(err => {
-        if (err) {
-          console.error("Session save error (customer):", err);
-          return res.status(500).json({ error: "Session save error" });
-        }
-        console.log("Session after login:", req.session);
+      if (customerResults.length > 0) {
+        const user = customerResults[0];
+        req.session.user = {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          username: user.username,
+          provider: "local"
+        };
+        await req.session.save();
+        await conn.end();
         return res.json({ role: "customer", user: req.session.user });
-      });
-      return;
-    }
+      }
 
-    return res.status(401).json({ message: "Wrong username or password" });
-  } catch (err) {
-    console.error("Login error:", err);
-    return res.status(500).json({ error: "Server error" });
-  }
+      await conn.end();
+      return res.status(401).json({ message: "Wrong username or password" });
+
+    } catch (err) {
+      if (conn) await conn.end();
+      console.error("Login error:", err);
+      return res.status(500).json({ error: "Server error" });
+    }
 });
 
 // API đăng ký
