@@ -7,6 +7,7 @@ const nodemailer = require("nodemailer");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const FacebookStrategy = require("passport-facebook").Strategy;
 const session = require('express-session');
+const MySQLStore = require('express-mysql-session')(session);
 const mysql = require('mysql2');
 const http = require("http");
 const { Server } = require("socket.io");
@@ -17,21 +18,38 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 const app = express();
 
 app.use(bodyParser.json());
+
 app.use(cors({
   origin: "https://doanchuyennganh.vercel.app",
   credentials: true,
 }));
+// MySQL session store
+const sessionStore = new MySQLStore({
+  host: process.env.MYSQLHOST,
+  port: process.env.MYSQLPORT || 3306,
+  user: process.env.MYSQLUSER,
+  password: process.env.MYSQLPASSWORD,
+  database: process.env.MYSQLDATABASE,
+  clearExpired: true,
+  checkExpirationInterval: 900000,
+  expiration: 86400000
+});
+
+// Express session
 app.use(session({
-  secret: "secretKey",
+  key: "session_cookie_name",
+  secret: process.env.SESSION_SECRET || "secretKey",
+  store: sessionStore,
   resave: false,
   saveUninitialized: false,
   cookie: {
     httpOnly: true,
-    secure: true,      // bắt buộc với HTTPS
-    sameSite: "none",   // bắt cookie gửi cross-site
-    maxAge: 24*60*60*1000 // thoi gian su dung cookie 1 ngày
+    secure: true,          // Vercel chạy HTTPS nên secure = true
+    sameSite: "none",      // Cross-site cookie
+    maxAge: 24*60*60*1000
   }
 }));
+
 app.use(passport.initialize());
 app.use(passport.session());
 
