@@ -467,7 +467,7 @@ app.post("/login", async (req, res) => {
   const { username, password } = req.body;
 
   try {
-    // Kiểm tra admin
+    // --- ADMIN ---
     const adminResults = await query(
       "SELECT * FROM admin WHERE username = ? AND password_hash = ?",
       [username, password]
@@ -480,14 +480,14 @@ app.post("/login", async (req, res) => {
         role: "admin"
       };
 
-      await new Promise((resolve, reject) => {
-        req.session.save(err => (err ? reject(err) : resolve()));
-      });
+      await new Promise((resolve, reject) =>
+        req.session.save(err => (err ? reject(err) : resolve()))
+      );
 
       return res.json({ role: "admin", user: req.session.user });
     }
 
-    // Kiểm tra customer
+    // --- CUSTOMER ---
     const customerResults = await query(
       "SELECT * FROM customers WHERE username = ? AND password = ?",
       [username, password]
@@ -503,23 +503,23 @@ app.post("/login", async (req, res) => {
         provider: "local"
       };
 
+      await new Promise((resolve, reject) =>
+        req.session.save(err => (err ? reject(err) : resolve()))
+      );
+
       console.log("Session after login:", req.session);
-
-      await new Promise((resolve, reject) => {
-        req.session.save(err => (err ? reject(err) : resolve()));
-      });
-
       return res.json({ role: "customer", user: req.session.user });
     }
 
-    // Nếu không tìm thấy admin hay customer
+    // --- KHÔNG TÌM THẤY ---
     return res.status(401).json({ message: "Wrong username or password" });
 
   } catch (err) {
-    console.error(err);
+    console.error("Login error:", err);
     return res.status(500).json({ error: "Server error" });
   }
 });
+
 
 
 // API đăng ký
