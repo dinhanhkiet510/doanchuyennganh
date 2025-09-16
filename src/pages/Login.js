@@ -30,6 +30,10 @@ function Login() {
   //local login
   const handleLogin = async (e) => {
     e.preventDefault();
+    console.log("Login button clicked");
+
+    // Log API URL
+    console.log("API URL:", process.env.REACT_APP_API_URL);
     try {
       const res = await fetch(`${process.env.REACT_APP_API_URL}/login`,  {
         method: "POST",
@@ -78,7 +82,7 @@ function Login() {
             <label className="form-label">Password</label>
             <input type="password" className="form-control" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="current-password" />
           </div>
-          <button type="submit" onClick={() => console.log("Button clicked")} className="btn w-100 text-white mb-3" style={{ borderRadius: "8px", background: "linear-gradient(to right, #43cea2, #185a9d)", border: "none" }}>
+          <button type="submit" className="btn w-100 text-white mb-3" style={{ borderRadius: "8px", background: "linear-gradient(to right, #43cea2, #185a9d)", border: "none" }}>
             Login
           </button>
         </form>
