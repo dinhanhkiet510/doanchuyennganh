@@ -9,31 +9,13 @@ const FacebookStrategy = require("passport-facebook").Strategy;
 const session = require('express-session');
 const mysql = require('mysql2');
 const http = require("http");
+const MySQLStore = require('express-mysql-session')(session);
 const { Server } = require("socket.io");
 // Thêm thư viện Gemini
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 // Middleware
 const app = express();
-
-app.use(bodyParser.json());
-app.use(cors({
-  origin: "https://doanchuyennganh.vercel.app",
-  credentials: true,
-}));
-app.use(session({
-  secret: "secretKey",
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production', // chỉ HTTPS mới true
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-    maxAge: 24*60*60*1000
-  }
-}));
-app.use(passport.initialize());
-app.use(passport.session());
 
 // Kết nối MySQL
 const db = mysql.createConnection({
@@ -65,6 +47,44 @@ const db = mysql.createConnection({
     }
   });
 
+// Cấu hình MySQL session store
+const sessionStore = new MySQLStore({
+  host: process.env.MYSQLHOST || "centerbeam.proxy.rlwy.net",
+  port: process.env.MYSQLPORT || 19275,
+  user: process.env.MYSQLUSER || "root",
+  password: process.env.MYSQLPASSWORD || "AEJUonHzOjqtrAGZavbbGRxVYDXoUkrK",
+  database: process.env.MYSQLDATABASE || "railway",
+  createDatabaseTable: true, // tự tạo bảng nếu chưa có
+  schema: {
+    tableName: 'sessions',
+    columnNames: {
+      session_id: 'session_id',
+      expires: 'expires',
+      data: 'data'
+    }
+  }
+}, db); // db là connection MySQL hiện tại của bạn
+
+app.use(session({
+  name: process.env.SESSION_NAME,       // Tên cookie session
+  secret: process.env.SESSION_SECRET,   // Chuỗi bí mật
+  resave: false,                        // Không lưu session nếu không thay đổi
+  saveUninitialized: false,             // Không tạo session mới nếu chưa có dữ liệu
+  cookie: {
+    httpOnly: true,                     // Cookie không thể truy cập bằng JS phía client
+    secure: process.env.NODE_ENV === 'production', // Chỉ gửi cookie qua HTTPS ở production
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // Tránh lỗi CORS khi dùng HTTPS
+    maxAge: 24 * 60 * 60 * 1000        // Thời gian sống cookie: 1 ngày
+  }
+}));
+
+app.use(bodyParser.json());
+app.use(cors({
+  origin: "https://doanchuyennganh.vercel.app",
+  credentials: true,
+}));
+app.use(passport.initialize());
+app.use(passport.session());
 
 // Khởi tạo Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
