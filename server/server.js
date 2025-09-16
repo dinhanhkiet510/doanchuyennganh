@@ -41,14 +41,15 @@ app.use(session({
   secret: process.env.SESSION_SECRET || "secretKey",
   store: sessionStore,
   resave: false,
-  saveUninitialized: false,
+  saveUninitialized: false,  // chỉ lưu session khi có dữ liệu
   cookie: {
     httpOnly: true,
-    secure: true,          // Vercel chạy HTTPS nên secure = true
-    sameSite: "none",      // Cross-site cookie
+    secure: false,          // bắt buộc HTTPS → đúng với Vercel + Render
+    sameSite: "none",      // cross-site cookie
     maxAge: 24*60*60*1000
   }
 }));
+
 
 app.use(passport.initialize());
 app.use(passport.session());
@@ -519,7 +520,6 @@ app.post("/login", (req, res) => {
     }
   );
 });
-
 
 // API đăng ký
 app.post("/register", (req, res) => {
