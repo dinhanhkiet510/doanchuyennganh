@@ -16,6 +16,7 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 // Middleware
 const app = express();
+app.set('trust proxy', 1);
 
 app.use(bodyParser.json());
 
