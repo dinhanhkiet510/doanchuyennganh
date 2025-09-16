@@ -487,10 +487,6 @@ app.post("/login", (req, res) => {
             user: req.session.user
           });
         });
-        return res.json({
-          role: "admin",
-          user: req.session.user
-        });
       }
 
       // Nếu không phải admin thì kiểm tra customer
@@ -516,11 +512,6 @@ app.post("/login", (req, res) => {
                 role: "customer",
                 user: req.session.user
               });
-            });
-            console.log("Current session.user:", req.session.user);
-            return res.json({
-              role: "customer",
-              user: req.session.user
             });
           } else {
             return res.status(401).json({ message: "Wrong username or password" });
