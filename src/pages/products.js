@@ -13,6 +13,7 @@ function Products() {
   const [sortType, setSortType] = useState("");
   const [loading, setLoading] = useState(false);
   const [clickedId, setClickedId] = useState(null);
+  
   useEffect(() => {
     const fetchProducts = async () => {
       setLoading(true);
@@ -21,15 +22,18 @@ function Products() {
           `${process.env.REACT_APP_API_URL}/products/category/${categoryId}`,
           { params: { sort: sortType } }
         );
-        setProducts(res.data);
+        const data = Array.isArray(res.data) ? res.data : res.data.data || [];
+        setProducts(data);
       } catch (error) {
         console.error(error);
+        setProducts([]); // fallback
       } finally {
         setLoading(false);
       }
     };
     fetchProducts();
   }, [categoryId, sortType]);
+
 
   const banners = {
     "1": {

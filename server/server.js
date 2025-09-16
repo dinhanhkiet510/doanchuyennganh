@@ -7,7 +7,7 @@ const nodemailer = require("nodemailer");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const FacebookStrategy = require("passport-facebook").Strategy;
 const session = require('express-session');
-const mysql = require('mysql');
+const mysql = require('mysql2');
 const http = require("http");
 const { Server } = require("socket.io");
 // Thêm thư viện Gemini
@@ -15,7 +15,6 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 // Middleware
 const app = express();
-const PORT = 5000;
 
 app.use(bodyParser.json());
 app.use(cors({
@@ -45,7 +44,10 @@ const db = mysql.createConnection({
   user: process.env.MYSQLUSER || "root",
   password: process.env.MYSQLPASSWORD || "AEJUonHzOjqtrAGZavbbGRxVYDXoUkrK",
   database: process.env.MYSQLDATABASE || "railway",
-  port: process.env.MYSQLPORT || 19275
+  port: process.env.MYSQLPORT || 19275,
+  ssl: {
+    rejectUnauthorized: true, // Railway yêu cầu SSL
+  },
 });
 
 db.connect((err) => {
@@ -1071,6 +1073,8 @@ app.get("/api/statistics/top-products", (req, res) => {
 
 
 // Khởi động server
-server.listen(PORT, () => {
-  console.log(`Server đang chạy tại http://localhost:${PORT}`);
+const PORT = process.env.PORT || 5000;
+
+server.listen(PORT, "0.0.0.0", () => {
+  console.log(`✅ Server đang chạy tại cổng ${PORT}`);
 });
