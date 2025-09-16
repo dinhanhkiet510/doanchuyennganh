@@ -35,10 +35,10 @@ export default function ManagementStatistics() {
     axios
       .get(`${process.env.REACT_APP_API_URL}/api/statistics`)
       .then((res) => setOrderStats(res.data || []))
-      .catch((err) => console.error("❌ Lỗi lấy statistics:", err));
+      .catch((err) => console.error("Lỗi lấy statistics:", err));
 
     axios
-      .get("http://localhost:5000/api/statistics/top-products")
+      .get(`${process.env.REACT_APP_API_URL}/api/statistics/top-products`)
       .then((res) => setTopProducts(res.data || []))
       .catch((err) => console.error("❌ Lỗi lấy top products:", err));
   }, []);

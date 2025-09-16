@@ -23,7 +23,7 @@ function Header() {
       setSuggestions([]);
       return;
     }
-    fetch(`http://localhost:5000/api/products/search?q=${encodeURIComponent(searchTerm)}`)
+    fetch(`${process.env.REACT_APP_API_URL}/api/products/search?q=${encodeURIComponent(searchTerm)}`)
       .then((res) => res.json())
       .then((data) => setSuggestions(data))
       .catch((err) => console.error(err));
