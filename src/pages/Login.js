@@ -30,6 +30,7 @@ function Login() {
   //local login
   const handleLogin = async (e) => {
     e.preventDefault();
+    console.log("Login button clicked");
     try {
       const res = await fetch(`${process.env.REACT_APP_API_URL}/login`,  {
         method: "POST",
