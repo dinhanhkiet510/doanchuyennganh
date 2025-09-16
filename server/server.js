@@ -8,7 +8,7 @@ const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const FacebookStrategy = require("passport-facebook").Strategy;
 const session = require('express-session');
 const MySQLStore = require('express-mysql-session')(session);
-const mysql = require("mysql2");
+const mysql = require("mysql2/promise");
 const http = require("http");
 const { Server } = require("socket.io");
 // Thêm thư viện Gemini
@@ -56,36 +56,32 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
+let db;
 // Kết nối MySQL
-const db = mysql.createConnection({
- host: process.env.MYSQLHOST || "centerbeam.proxy.rlwy.net",
-  user: process.env.MYSQLUSER || "root",
-  password: process.env.MYSQLPASSWORD || "AEJUonHzOjqtrAGZavbbGRxVYDXoUkrK",
-  database: process.env.MYSQLDATABASE || "railway",
-  port: process.env.MYSQLPORT || 19275,
-  ssl: {
-    rejectUnauthorized: false, // Railway yêu cầu SSL
-  },
-});
-
- db.connect(err => {
-    if(err) {
-      console.log("Lỗi kết nối MySQL, retry sau 2s...", err);
-      setTimeout(handleDisconnect, 2000);
-    } else {
-      console.log("MySQL connected");
-    }
+async function main() {
+   db = await mysql.createConnection({
+    host: process.env.MYSQLHOST,
+    user: process.env.MYSQLUSER,
+    password: process.env.MYSQLPASSWORD,
+    database: process.env.MYSQLDATABASE,
+    port: process.env.MYSQLPORT,
+    ssl: { rejectUnauthorized: false }
   });
 
-  db.on("error", err => {
-    console.log("Kết nối MySQL bị mất, reconnect...", err);
-    if(err.code === "PROTOCOL_CONNECTION_LOST") {
-      handleDisconnect();
-    } else {
-      throw err;
-    }
-  });
+  console.log("MySQL connected");
+}
 
+main();
+
+// Hàm helper để query MySQL với promise
+function queryAsync(sql, params = []) {
+  return new Promise((resolve, reject) => {
+    db.query(sql, params, (err, results) => {
+      if (err) return reject(err);
+      resolve(results);
+    });
+  });
+}
 
 // Khởi tạo Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -462,54 +458,67 @@ app.delete("/products/:id", (req, res) => {
   });
 });
 
-app.post("/login", (req, res) => {
+// API đăng nhập
+app.post("/login", async (req, res) => {
   const { username, password } = req.body;
 
-  db.query(
-    "SELECT * FROM admin WHERE username = ? AND password_hash = ?",
-    [username, password],
-    (err, adminResults) => {
-      if (err) return res.status(500).json({ error: "Server error" });
+  try {
+    console.log("Login attempt:", { username, password });
 
-      if (adminResults.length > 0) {
-        req.session.user = {
-          id: adminResults[0].id,
-          name: adminResults[0].name || adminResults[0].username,
-          role: "admin"
-        };
-        return req.session.save(err => {
-          if (err) return res.status(500).json({ error: "Server error" });
-          return res.json({ role: "admin", user: req.session.user });
-        });
-      }
+    // --- ADMIN ---
+    const adminResults = await queryAsync(
+      "SELECT * FROM admin WHERE username = ? AND password_hash = ?",
+      [username, password]
+    );
 
-      // CUSTOMER
-      db.query(
-        "SELECT * FROM customers WHERE username = ? AND password = ?",
-        [username, password],
-        (err, customerResults) => {
-          if (err) return res.status(500).json({ error: "Server error" });
+    console.log("Admin results:", adminResults);
 
-          if (customerResults.length > 0) {
-            const user = customerResults[0];
-            req.session.user = {
-              id: user.id,
-              name: user.name,
-              email: user.email,
-              username: user.username,
-              provider: "local"
-            };
-            return req.session.save(err => {
-              if (err) return res.status(500).json({ error: "Server error" });
-              return res.json({ role: "customer", user: req.session.user });
-            });
-          }
+    if (adminResults.length > 0) {
+      req.session.user = {
+        id: adminResults[0].id,
+        name: adminResults[0].name || adminResults[0].username,
+        role: "admin"
+      };
 
-          return res.status(401).json({ message: "Wrong username or password" });
-        }
+      await new Promise((resolve, reject) => 
+        req.session.save(err => (err ? reject(err) : resolve()))
       );
+
+      return res.json({ role: "admin", user: req.session.user });
     }
-  );
+
+    // --- CUSTOMER ---
+    const customerResults = await queryAsync(
+      "SELECT * FROM customers WHERE username = ? AND password = ?",
+      [username, password]
+    );
+
+    console.log("Customer results:", customerResults);
+
+    if (customerResults.length > 0) {
+      const user = customerResults[0];
+      req.session.user = {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        username: user.username,
+        provider: "local"
+      };
+
+      await new Promise((resolve, reject) => 
+        req.session.save(err => (err ? reject(err) : resolve()))
+      );
+
+      return res.json({ role: "customer", user: req.session.user });
+    }
+
+    // --- KHÔNG TÌM THẤY ---
+    return res.status(401).json({ message: "Wrong username or password" });
+
+  } catch (err) {
+    console.error("Login error:", err);
+    return res.status(500).json({ error: "Server error" });
+  }
 });
 
 // API đăng ký
