@@ -37,8 +37,9 @@ function Login() {
         body: JSON.stringify({ username, password }),
         credentials: "include", // gửi cookie session
       });
-      const data = await res.json();
-
+      console.log("Response:", res);
+      const data = await res.json().catch(e => console.error("JSON parse error", e));
+      console.log("Data:", data);
       if (res.ok) {
         login(data.user); // lưu user vào context
 
