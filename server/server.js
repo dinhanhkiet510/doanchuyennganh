@@ -26,8 +26,9 @@ app.use(session({
   resave: false,
   saveUninitialized: true,
   cookie: {
-    secure: false,
-    sameSite: 'lax'
+    httpOnly: true,
+    secure: true,      // bắt buộc với HTTPS
+    sameSite: "none"   // bắt cookie gửi cross-site
   }
 }));
 app.use(passport.initialize());

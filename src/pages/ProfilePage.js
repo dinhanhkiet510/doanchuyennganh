@@ -27,7 +27,6 @@ function ProfilePage() {
         const profileRes = await axios.get(`${process.env.REACT_APP_API_URL}/api/customers/me`, { withCredentials: true });
         setProfile(profileRes.data);
         setFormData(profileRes.data);
-
         const ordersRes = await axios.get(`${process.env.REACT_APP_API_URL}/api/orders/my-orders/${user.id}`, { withCredentials: true });
         setOrders(ordersRes.data);
       } catch (err) {
@@ -69,7 +68,6 @@ function ProfilePage() {
       setMessage("Error changing password");
     }
   };
-
   return (
     <div className="container py-5 profile-container">
       <div className="row justify-content-center">
@@ -81,7 +79,7 @@ function ProfilePage() {
               {profile.avatar && (
                 <div className="text-center mb-4">
                   <img
-                    src={`${process.env.REACT_APP_API_URL}/${profile.avatar}`}
+                    src=""
                     alt="avatar"
                     className="rounded-circle profile-avatar"
                   />
