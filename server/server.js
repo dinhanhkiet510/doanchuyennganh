@@ -21,10 +21,10 @@ app.set('trust proxy', 1);
 app.use(bodyParser.json());
 
 app.use(cors({
-  origin: "https://doanchuyennganh.vercel.app",
-  methods: ["GET","POST","PUT","PATCH","DELETE"],
-  allowedHeaders: ["Content-Type"],
+  origin: 'https://doanchuyennganh.vercel.app',
   credentials: true,
+  allowedHeaders: ['Content-Type'],
+  methods: ['GET','POST','PUT','DELETE','OPTIONS']
 }));
 
 // MySQL session store
