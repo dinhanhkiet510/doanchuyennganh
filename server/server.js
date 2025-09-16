@@ -24,7 +24,7 @@ app.use(cors({
 app.use(session({
   secret: "secretKey",
   resave: false,
-  saveUninitialized: true,
+  saveUninitialized: false,
   cookie: {
     httpOnly: true,
     secure: true,      // bắt buộc với HTTPS
