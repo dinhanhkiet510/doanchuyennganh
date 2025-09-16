@@ -27,9 +27,9 @@ app.use(session({
   saveUninitialized: false,
   cookie: {
     httpOnly: true,
-    secure: true,      // bắt buộc với HTTPS
-    sameSite: "none",   // bắt cookie gửi cross-site
-    maxAge: 24*60*60*1000 // thoi gian su dung cookie 1 ngày
+    secure: process.env.NODE_ENV === 'production', // chỉ HTTPS mới true
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    maxAge: 24*60*60*1000
   }
 }));
 app.use(passport.initialize());
