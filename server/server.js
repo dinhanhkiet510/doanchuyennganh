@@ -22,8 +22,6 @@ app.use(bodyParser.json());
 
 app.use(cors({
   origin: "https://doanchuyennganh.vercel.app",
-  methods: ["GET","POST","PUT","PATCH","DELETE"],
-  allowedHeaders: ["Content-Type"],
   credentials: true,
 }));
 
