@@ -28,7 +28,8 @@ app.use(session({
   cookie: {
     httpOnly: true,
     secure: true,      // bắt buộc với HTTPS
-    sameSite: "none"   // bắt cookie gửi cross-site
+    sameSite: "none",   // bắt cookie gửi cross-site
+    maxAge: 24*60*60*1000 // thoi gian su dung cookie 1 ngày
   }
 }));
 app.use(passport.initialize());
@@ -481,7 +482,7 @@ app.post("/login", (req, res) => {
               username: user.username,
               provider: 'local'      // đánh dấu login local
             };
-
+            console.log("Current session.user:", req.session.user);
             return res.json({
               role: "customer",
               user: req.session.user
