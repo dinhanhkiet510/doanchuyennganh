@@ -480,11 +480,16 @@ app.post("/login", async (req, res) => {
         role: "admin"
       };
 
-      await new Promise((resolve, reject) =>
-        req.session.save(err => (err ? reject(err) : resolve()))
-      );
+      // Lưu session bằng callback, không cần Promise
+      req.session.save(err => {
+        if (err) {
+          console.error("Session save failed:", err);
+          return res.status(500).json({ error: "Session save failed" });
+        }
+        return res.json({ role: "admin", user: req.session.user });
+      });
 
-      return res.json({ role: "admin", user: req.session.user });
+      return; // kết thúc ở đây
     }
 
     // --- CUSTOMER ---
@@ -503,12 +508,17 @@ app.post("/login", async (req, res) => {
         provider: "local"
       };
 
-      await new Promise((resolve, reject) =>
-        req.session.save(err => (err ? reject(err) : resolve()))
-      );
+      // Lưu session bằng callback
+      req.session.save(err => {
+        if (err) {
+          console.error("Session save failed:", err);
+          return res.status(500).json({ error: "Session save failed" });
+        }
+        console.log("Session after login:", req.session);
+        return res.json({ role: "customer", user: req.session.user });
+      });
 
-      console.log("Session after login:", req.session);
-      return res.json({ role: "customer", user: req.session.user });
+      return; // kết thúc ở đây
     }
 
     // --- KHÔNG TÌM THẤY ---
@@ -519,7 +529,6 @@ app.post("/login", async (req, res) => {
     return res.status(500).json({ error: "Server error" });
   }
 });
-
 
 
 // API đăng ký
@@ -621,7 +630,6 @@ app.get("/api/orders/my-orders/:customerId", (req, res) => {
     res.json(Object.values(ordersMap));
   });
 });
-
 
 // API lưu contact
 app.post("/contact", (req, res) => {
