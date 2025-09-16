@@ -80,7 +80,7 @@ app.use(session({
 
 app.use(bodyParser.json());
 app.use(cors({
-  origin: "https://doanchuyennganh.vercel.app",
+  origin: ["https://doanchuyennganh.vercel.app", "http://localhost:3000"],
   credentials: true,
 }));
 app.use(passport.initialize());
