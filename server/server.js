@@ -45,7 +45,7 @@ app.use(session({
   saveUninitialized: false,  // chỉ lưu session khi có dữ liệu
   cookie: {
     httpOnly: true,
-    secure: true,          // bắt buộc HTTPS → đúng với Vercel + Render
+    secure: false,          // bắt buộc HTTPS → đúng với Vercel + Render
     sameSite: "none",      // cross-site cookie
     maxAge: 24*60*60*1000
   }
