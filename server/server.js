@@ -462,66 +462,58 @@ app.delete("/products/:id", (req, res) => {
   });
 });
 
-
-// API đăng nhập
-app.post("/login", (req, res) => {
+//API dang nhap
+app.post("/login", async (req, res) => {
   const { username, password } = req.body;
 
-  // Kiểm tra admin trước
-  db.query(
-    "SELECT * FROM admin WHERE username = ? AND password_hash = ?",
-    [username, password],
-    (err, adminResults) => {
-      if (err) return res.status(500).json({ error: err });
-      if (adminResults.length > 0) {
-        // Lưu session cho admin (nếu cần)
-        req.session.user = {
-          id: adminResults[0].id,  // thêm id
-          name: adminResults[0].name || adminResults[0].username,
-          role: "admin"
-        };
-        // Bắt buộc save session trước khi gửi response
-        req.session.save((err) => {
-          if (err) return res.status(500).json({ error: err });
-          return res.json({
-            role: "admin",
-            user: req.session.user
-          });
-        });
-      }
+  try {
+    // Kiểm tra admin
+    const adminResults = await query(
+      "SELECT * FROM admin WHERE username = ? AND password_hash = ?",
+      [username, password]
+    );
 
-      // Nếu không phải admin thì kiểm tra customer
-      db.query(
-        "SELECT * FROM customers WHERE username = ? AND password = ?",
-        [username, password],
-        (err, customerResults) => {
-          if (err) return res.status(500).json({ error: err });
-          if (customerResults.length > 0) {
-            const user = customerResults[0];
-
-            // Lưu session cho customer
-            req.session.user = {
-              id: user.id,           // quan trọng: thêm id
-              name: user.name,
-              email: user.email,
-              username: user.username,
-              provider: 'local'      // đánh dấu login local
-            };
-            console.log("Session after login:", req.session);
-            req.session.save((err) => {
-              if (err) return res.status(500).json({ error: err });
-              return res.json({
-                role: "customer",
-                user: req.session.user
-              });
-            });
-          } else {
-            return res.status(401).json({ message: "Wrong username or password" });
-          }
-        }
-      );
+    if (adminResults.length > 0) {
+      req.session.user = {
+        id: adminResults[0].id,
+        name: adminResults[0].name || adminResults[0].username,
+        role: "admin"
+      };
+      return req.session.save(err => {
+        if (err) return res.status(500).json({ error: err });
+        return res.json({ role: "admin", user: req.session.user });
+      });
     }
-  );
+
+    // Kiểm tra customer
+    const customerResults = await query(
+      "SELECT * FROM customers WHERE username = ? AND password = ?",
+      [username, password]
+    );
+
+    if (customerResults.length > 0) {
+      const user = customerResults[0];
+      req.session.user = {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        username: user.username,
+        provider: 'local'
+      };
+      console.log("Session after login:", req.session);
+      return req.session.save(err => {
+        if (err) return res.status(500).json({ error: err });
+        return res.json({ role: "customer", user: req.session.user });
+      });
+    }
+
+    // Nếu không tìm thấy admin hay customer
+    return res.status(401).json({ message: "Wrong username or password" });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Server error" });
+  }
 });
 
 // API đăng ký

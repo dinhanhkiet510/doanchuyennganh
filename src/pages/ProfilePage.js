@@ -16,6 +16,7 @@ function ProfilePage() {
   });
   const [message, setMessage] = useState("");
   const [activeTab, setActiveTab] = useState("info");
+  const [loading, setLoading] = useState(true); // state loading
 
   const isOAuth = user?.provider && user.provider !== "local";
 
@@ -23,6 +24,7 @@ function ProfilePage() {
     if (!user?.id) return;
 
     const fetchData = async () => {
+      setLoading(true); // bắt đầu loading
       try {
         const profileRes = await axios.get(`${process.env.REACT_APP_API_URL}/api/customers/me`, { withCredentials: true });
         setProfile(profileRes.data);
@@ -31,14 +33,28 @@ function ProfilePage() {
         setOrders(ordersRes.data);
       } catch (err) {
         console.error("Error fetching data:", err);
+      } finally {
+        setLoading(false); // kết thúc loading
       }
     };
 
     fetchData();
   }, [user]);
 
+  // Nếu chưa login
   if (!user) return <p className="text-center mt-5">Please login to view your profile</p>;
-  if (!profile) return <p className="text-center mt-5">Loading...</p>;
+
+  // Nếu đang loading
+  if (loading || !profile) {
+    return (
+      <div className="text-center mt-5">
+        <div className="spinner-border text-primary" role="status">
+          <span className="visually-hidden">Loading...</span>
+        </div>
+        <p>Loading your profile...</p>
+      </div>
+    );
+  }
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -68,6 +84,7 @@ function ProfilePage() {
       setMessage("Error changing password");
     }
   };
+
   return (
     <div className="container py-5 profile-container">
       <div className="row justify-content-center">
@@ -79,7 +96,7 @@ function ProfilePage() {
               {profile.avatar && (
                 <div className="text-center mb-4">
                   <img
-                    src=""
+                    src={profile.avatar || ""}
                     alt="avatar"
                     className="rounded-circle profile-avatar"
                   />
