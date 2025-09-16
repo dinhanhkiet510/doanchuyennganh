@@ -18,7 +18,7 @@ const app = express();
 
 app.use(bodyParser.json());
 app.use(cors({
-  origin: "https://doanchuyennganh.vercel.app",
+  origin:  ["http://localhost:3000", "https://doanchuyennganh.vercel.app"],
   credentials: true,
 }));
 app.use(session({
@@ -28,7 +28,7 @@ app.use(session({
   cookie: {
     httpOnly: true,
     secure: true,      // bắt buộc với HTTPS
-    sameSite: "none",   // bắt cookie gửi cross-site
+    sameSite: "lax",   // bắt cookie gửi cross-site
     maxAge: 24*60*60*1000 // thoi gian su dung cookie 1 ngày
   }
 }));
