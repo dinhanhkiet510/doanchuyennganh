@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import io from "socket.io-client";
 import axios from "axios";
 
-const socket = io(process.env.REACT_APP_API_URL);
+const socket = io("https://doanchuyennganh.onrender.com");
 
 export default function AdminChat() {
   const [customers, setCustomers] = useState([]);

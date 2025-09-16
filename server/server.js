@@ -935,8 +935,11 @@ app.post("/chat", async (req, res) => {
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:3000",
+    origin: [
+      "https://doanchuyennganh.vercel.app"
+    ],
     methods: ["GET", "POST"],
+    credentials: true
   },
 });
 
@@ -1069,8 +1072,8 @@ app.get("/api/statistics/top-products", (req, res) => {
 
 
 // Khởi động server
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 5000;
 
 server.listen(PORT, "0.0.0.0", () => {
-  console.log(`✅ Server đang chạy tại cổng ${PORT}`);
+  console.log(`Server đang chạy tại cổng ${PORT}`);
 });

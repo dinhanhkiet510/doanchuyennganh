@@ -6,7 +6,7 @@
   import parse from "html-react-parser";
 
   // Kết nối socket
-  const socket = io(process.env.REACT_APP_API_URL, { autoConnect: true });
+  const socket = io("https://doanchuyennganh.onrender.com", { autoConnect: true,  withCredentials: true});
 
   export default function ChatbotWidget() {
     const { user } = useContext(AuthContext);
