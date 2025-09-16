@@ -28,7 +28,7 @@ app.use(session({
   cookie: {
     httpOnly: true,
     secure: true,      // bắt buộc với HTTPS
-    sameSite: "lax",   // bắt cookie gửi cross-site
+    sameSite: "none",   // bắt cookie gửi cross-site
     maxAge: 24*60*60*1000 // thoi gian su dung cookie 1 ngày
   }
 }));
