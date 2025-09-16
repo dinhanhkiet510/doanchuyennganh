@@ -3,7 +3,6 @@ const passport = require('passport');
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
-const bcrypt = require("bcryptjs");
 const nodemailer = require("nodemailer");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const FacebookStrategy = require("passport-facebook").Strategy;
@@ -38,10 +37,11 @@ app.use(passport.session());
 
 // Kết nối MySQL
 const db = mysql.createConnection({
-  host: "https://speakerstore.onrender.com",
-  user: "root",
-  password: "",
-  database: "speaker_store"
+ host: process.env.MYSQLHOST || "centerbeam.proxy.rlwy.net",
+  user: process.env.MYSQLUSER || "root",
+  password: process.env.MYSQLPASSWORD || "AEJUonHzOjqtrAGZavbbGRxVYDXoUkrK",
+  database: process.env.MYSQLDATABASE || "railway",
+  port: process.env.MYSQLPORT || 19275
 });
 
 db.connect((err) => {

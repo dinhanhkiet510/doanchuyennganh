@@ -18,7 +18,7 @@ function Products() {
       setLoading(true);
       try {
         const res = await axios.get(
-          `http://localhost:5000/products/category/${categoryId}`,
+          `${process.env.REACT_APP_API_URL}/products/category/${categoryId}`,
           { params: { sort: sortType } }
         );
         setProducts(res.data);
