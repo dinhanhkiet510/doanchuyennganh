@@ -46,7 +46,7 @@ const db = mysql.createConnection({
   database: process.env.MYSQLDATABASE || "railway",
   port: process.env.MYSQLPORT || 19275,
   ssl: {
-    rejectUnauthorized: true, // Railway yêu cầu SSL
+    rejectUnauthorized: false, // Railway yêu cầu SSL
   },
 });
 
