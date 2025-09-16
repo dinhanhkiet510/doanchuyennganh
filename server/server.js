@@ -462,7 +462,7 @@ app.delete("/products/:id", (req, res) => {
   });
 });
 
-//API dang nhap
+// API đăng nhập
 app.post("/login", async (req, res) => {
   const { username, password } = req.body;
 
@@ -479,10 +479,12 @@ app.post("/login", async (req, res) => {
         name: adminResults[0].name || adminResults[0].username,
         role: "admin"
       };
-      return req.session.save(err => {
-        if (err) return res.status(500).json({ error: err });
-        return res.json({ role: "admin", user: req.session.user });
+
+      await new Promise((resolve, reject) => {
+        req.session.save(err => (err ? reject(err) : resolve()));
       });
+
+      return res.json({ role: "admin", user: req.session.user });
     }
 
     // Kiểm tra customer
@@ -498,13 +500,16 @@ app.post("/login", async (req, res) => {
         name: user.name,
         email: user.email,
         username: user.username,
-        provider: 'local'
+        provider: "local"
       };
+
       console.log("Session after login:", req.session);
-      return req.session.save(err => {
-        if (err) return res.status(500).json({ error: err });
-        return res.json({ role: "customer", user: req.session.user });
+
+      await new Promise((resolve, reject) => {
+        req.session.save(err => (err ? reject(err) : resolve()));
       });
+
+      return res.json({ role: "customer", user: req.session.user });
     }
 
     // Nếu không tìm thấy admin hay customer
@@ -515,6 +520,7 @@ app.post("/login", async (req, res) => {
     return res.status(500).json({ error: "Server error" });
   }
 });
+
 
 // API đăng ký
 app.post("/register", (req, res) => {
