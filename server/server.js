@@ -465,7 +465,7 @@ app.delete("/products/:id", (req, res) => {
 // API đăng nhập
 app.post("/login", async (req, res) => {
     const { username, password } = req.body;
-
+    console.log("Login attempt:", { username, password });
     let conn;
     try {
       conn = await getConnection();
@@ -475,7 +475,7 @@ app.post("/login", async (req, res) => {
         "SELECT id, username, password_hash FROM admin WHERE username = ? AND password_hash = ?",
         [username, password]
       );
-
+      console.log("Admin results:", adminResults);
       if (adminResults.length > 0) {
         req.session.user = {
           id: adminResults[0].id,
@@ -492,7 +492,7 @@ app.post("/login", async (req, res) => {
         "SELECT id, name, email, username, password FROM customers WHERE username = ? AND password = ?",
         [username, password]
       );
-
+      console.log("Customer results:", customerResults);
       if (customerResults.length > 0) {
         const user = customerResults[0];
         req.session.user = {
