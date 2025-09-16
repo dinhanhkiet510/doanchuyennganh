@@ -24,6 +24,7 @@ app.use(cors({
   origin: "https://doanchuyennganh.vercel.app",
   credentials: true,
 }));
+
 // MySQL session store
 const sessionStore = new MySQLStore({
   host: process.env.MYSQLHOST,
@@ -506,6 +507,7 @@ app.post("/login", (req, res) => {
               username: user.username,
               provider: 'local'      // đánh dấu login local
             };
+            console.log("Session after login:", req.session);
             req.session.save((err) => {
               if (err) return res.status(500).json({ error: err });
               return res.json({
