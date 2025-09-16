@@ -465,10 +465,13 @@ app.delete("/products/:id", (req, res) => {
 // API đăng nhập
 app.post("/login", async (req, res) => {
   const { username, password } = req.body;
+  if (!username || !password) {
+    return res.status(400).json({ message: "Username and password are required" });
+  }
 
   try {
     // --- ADMIN ---
-    const adminResults = await query(
+    const [adminResults] = await db.execute(
       "SELECT * FROM admin WHERE username = ? AND password_hash = ?",
       [username, password]
     );
@@ -479,21 +482,18 @@ app.post("/login", async (req, res) => {
         name: adminResults[0].name || adminResults[0].username,
         role: "admin"
       };
-
-      // Lưu session bằng callback, không cần Promise
       req.session.save(err => {
         if (err) {
-          console.error("Session save failed:", err);
-          return res.status(500).json({ error: "Session save failed" });
+          console.error("Session save error (admin):", err);
+          return res.status(500).json({ error: "Session save error" });
         }
         return res.json({ role: "admin", user: req.session.user });
       });
-
-      return; // kết thúc ở đây
+      return;
     }
 
     // --- CUSTOMER ---
-    const customerResults = await query(
+    const [customerResults] = await db.execute(
       "SELECT * FROM customers WHERE username = ? AND password = ?",
       [username, password]
     );
@@ -507,29 +507,23 @@ app.post("/login", async (req, res) => {
         username: user.username,
         provider: "local"
       };
-
-      // Lưu session bằng callback
       req.session.save(err => {
         if (err) {
-          console.error("Session save failed:", err);
-          return res.status(500).json({ error: "Session save failed" });
+          console.error("Session save error (customer):", err);
+          return res.status(500).json({ error: "Session save error" });
         }
         console.log("Session after login:", req.session);
         return res.json({ role: "customer", user: req.session.user });
       });
-
-      return; // kết thúc ở đây
+      return;
     }
 
-    // --- KHÔNG TÌM THẤY ---
     return res.status(401).json({ message: "Wrong username or password" });
-
   } catch (err) {
     console.error("Login error:", err);
     return res.status(500).json({ error: "Server error" });
   }
 });
-
 
 // API đăng ký
 app.post("/register", (req, res) => {
