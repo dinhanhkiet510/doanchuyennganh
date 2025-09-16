@@ -22,7 +22,7 @@ app.use(cors({
   credentials: true,
 }));
 app.use(session({
-  secret: process.env.SESSION_SECRET,
+  secret: "secretKey",
   resave: false,
   saveUninitialized: false,
   cookie: {
@@ -459,6 +459,14 @@ app.post("/login", (req, res) => {
           name: adminResults[0].name || adminResults[0].username,
           role: "admin"
         };
+        // Bắt buộc save session trước khi gửi response
+        req.session.save((err) => {
+          if (err) return res.status(500).json({ error: err });
+          return res.json({
+            role: "admin",
+            user: req.session.user
+          });
+        });
         return res.json({
           role: "admin",
           user: req.session.user
@@ -482,6 +490,13 @@ app.post("/login", (req, res) => {
               username: user.username,
               provider: 'local'      // đánh dấu login local
             };
+            req.session.save((err) => {
+              if (err) return res.status(500).json({ error: err });
+              return res.json({
+                role: "customer",
+                user: req.session.user
+              });
+            });
             console.log("Current session.user:", req.session.user);
             return res.json({
               role: "customer",
