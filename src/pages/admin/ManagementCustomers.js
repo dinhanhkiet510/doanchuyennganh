@@ -7,7 +7,7 @@ export default function Customers() {
   const [search, setSearch] = useState("");
 
   useEffect(() => {
-    fetch("http://localhost:5000/customers")
+    fetch(`${process.env.REACT_APP_API_URL}/customers`)
       .then((res) => res.json())
       .then((data) => setCustomers(data))
       .catch((err) => console.error("Error fetching customers:", err));

@@ -24,11 +24,11 @@ function ProfilePage() {
 
     const fetchData = async () => {
       try {
-        const profileRes = await axios.get(`http://localhost:5000/api/customers/me`, { withCredentials: true });
+        const profileRes = await axios.get(`${process.env.REACT_APP_API_URL}/api/customers/me`, { withCredentials: true });
         setProfile(profileRes.data);
         setFormData(profileRes.data);
 
-        const ordersRes = await axios.get(`http://localhost:5000/api/orders/my-orders/${user.id}`, { withCredentials: true });
+        const ordersRes = await axios.get(`${process.env.REACT_APP_API_URL}/api/orders/my-orders/${user.id}`, { withCredentials: true });
         setOrders(ordersRes.data);
       } catch (err) {
         console.error("Error fetching data:", err);
@@ -47,7 +47,7 @@ function ProfilePage() {
 
   const handleSaveInfo = async () => {
     try {
-      await axios.put(`http://localhost:5000/api/customers/me`, formData, { withCredentials: true });
+      await axios.put(`${process.env.REACT_APP_API_URL}/api/customers/me`, formData, { withCredentials: true });
       setProfile({ ...profile, ...formData });
       setEditMode(false);
       setMessage("Profile updated successfully!");
@@ -62,7 +62,7 @@ function ProfilePage() {
       return;
     }
     try {
-      await axios.put(`http://localhost:5000/api/customers/change-password`, passwordData, { withCredentials: true });
+      await axios.put(`${process.env.REACT_APP_API_URL}/api/customers/change-password`, passwordData, { withCredentials: true });
       setMessage("Password changed successfully!");
       setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" });
     } catch (err) {
@@ -81,7 +81,7 @@ function ProfilePage() {
               {profile.avatar && (
                 <div className="text-center mb-4">
                   <img
-                    src={`http://localhost:5000/${profile.avatar}`}
+                    src={`${process.env.REACT_APP_API_URL}/${profile.avatar}`}
                     alt="avatar"
                     className="rounded-circle profile-avatar"
                   />

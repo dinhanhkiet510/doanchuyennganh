@@ -6,7 +6,7 @@ export default function Orders() {
 
   // Lấy danh sách đơn hàng từ API
   useEffect(() => {
-    fetch("http://localhost:5000/orders")
+    fetch(`${process.env.REACT_APP_API_URL}/orders`)
       .then((res) => res.json())
       .then((data) => setOrders(data))
       .catch((err) => console.error("Error fetching orders:", err));
@@ -15,7 +15,7 @@ export default function Orders() {
   // Hàm cập nhật trạng thái
   const updateStatus = async (orderId, newStatus) => {
     try {
-      const res = await fetch(`http://localhost:5000/orders/${orderId}`, {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/orders/${orderId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),

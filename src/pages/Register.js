@@ -22,7 +22,7 @@ function Register() {
     setError("");
 
     try {
-      const res = await axios.post("http://localhost:5000/register", form, {
+      const res = await axios.post(`${process.env.REACT_APP_API_URL}/register`, form, {
         withCredentials: true
       });
       setMessage(res.data.message || "Registration successful! Redirecting to login...");
@@ -37,7 +37,7 @@ function Register() {
   };
 
   const handleOAuthRegister = (provider) => {
-    window.location.href = `http://localhost:5000/auth/${provider}`;
+    window.location.href = `${process.env.REACT_APP_API_URL}/auth/${provider}`;
   };
 
   return (

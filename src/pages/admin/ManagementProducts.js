@@ -27,7 +27,7 @@ function ProductManagement() {
 
   // Load products
   const fetchProducts = () => {
-    axios.get("http://localhost:5000/products")
+    axios.get(`${process.env.REACT_APP_API_URL}/products`)
       .then(res => setProducts(res.data))
       .catch(err => console.error(err));
   };

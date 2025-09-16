@@ -33,7 +33,7 @@ export default function ManagementStatistics() {
 
   useEffect(() => {
     axios
-      .get("http://localhost:5000/api/statistics")
+      .get(`${process.env.REACT_APP_API_URL}/api/statistics`)
       .then((res) => setOrderStats(res.data || []))
       .catch((err) => console.error("❌ Lỗi lấy statistics:", err));
 
