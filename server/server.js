@@ -472,7 +472,7 @@ app.post("/login", async (req, res) => {
 
       // --- ADMIN ---
       const [adminResults] = await conn.execute(
-        "SELECT id, name, username, password_hash FROM admin WHERE username = ? AND password_hash = ?",
+        "SELECT id, username, password_hash FROM admin WHERE username = ? AND password_hash = ?",
         [username, password]
       );
 
