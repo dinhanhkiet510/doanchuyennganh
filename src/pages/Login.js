@@ -41,25 +41,23 @@ function Login() {
         body: JSON.stringify({ username, password }),
         credentials: "include", // gửi cookie session
       });
-      console.log("Response:", res);
-      const data = await res.json().catch(e => console.error("JSON parse error", e));
-      console.log("Data:", data);
-      if (res.ok) {
-        login(data.user); // lưu user vào context
+      console.log("Response status:", res.status); // kiểm tra status code
+        console.log("Response headers:", res.headers);
 
-        // Redirect theo role
-        if (data.role === "admin") {
-          navigate("/admin/products"); // admin thì vào trang admin
+        const data = await res.json().catch(e => console.error("JSON parse error", e));
+        console.log("Data:", data);
+
+        if (res.ok) {
+          login(data.user); // lưu user vào context
+          if (data.role === "admin") navigate("/admin/products");
+          else navigate("/");
         } else {
-          navigate("/"); // customer thì về trang chủ
+          setError(data.message || "Login failed!");
         }
-      } else {
-        setError(data.message || "Login failed!");
+      } catch (err) {
+        console.error("Fetch error:", err);
+        setError("Server connection error!");
       }
-    } catch (err) {
-      console.error(err);
-      setError("Server connection error!");
-    }
   };
 
   // OAuth login
