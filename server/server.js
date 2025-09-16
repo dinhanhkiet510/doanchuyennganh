@@ -18,13 +18,8 @@ const app = express();
 
 app.use(bodyParser.json());
 app.use(cors({
-  origin: [
-    "http://localhost:3000",            // dev local
-    "https://doanchuyennganh.vercel.app", // frontend Vercel
-  ],
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-  credentials: true
+  origin: "https://doanchuyennganh.vercel.app",
+  credentials: true,
 }));
 app.use(session({
   secret: "secretKey",
@@ -50,23 +45,24 @@ const db = mysql.createConnection({
   },
 });
 
-db.connect((err) => {
-  if (err) {
-    console.error("Kết nối MySQL thất bại:", err);
-    return;
-  }
-  console.log("Kết nối MySQL thành công!");
-});
-
-// Hàm query async wrapper
-function query(sql, params) {
-  return new Promise((resolve, reject) => {
-    db.query(sql, params, (err, results) => {
-      if (err) reject(err);
-      else resolve(results);
-    });
+ db.connect(err => {
+    if(err) {
+      console.log("❌ Lỗi kết nối MySQL, retry sau 2s...", err);
+      setTimeout(handleDisconnect, 2000);
+    } else {
+      console.log("✅ MySQL connected");
+    }
   });
-}
+
+  db.on("error", err => {
+    console.log("Kết nối MySQL bị mất, reconnect...", err);
+    if(err.code === "PROTOCOL_CONNECTION_LOST") {
+      handleDisconnect();
+    } else {
+      throw err;
+    }
+  });
+
 
 // Khởi tạo Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -1073,7 +1069,7 @@ app.get("/api/statistics/top-products", (req, res) => {
 
 
 // Khởi động server
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT;
 
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`✅ Server đang chạy tại cổng ${PORT}`);

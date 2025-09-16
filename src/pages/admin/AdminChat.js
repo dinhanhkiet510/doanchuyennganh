@@ -64,7 +64,7 @@ export default function AdminChat() {
   // Lấy danh sách khách hàng
   useEffect(() => {
     axios
-      .get("${process.env.REACT_APP_API_URL}/customers")
+      .get(`${process.env.REACT_APP_API_URL}/customers`)
       .then((res) => setCustomers(res.data))
       .catch((err) => console.error("❌ Lấy khách hàng lỗi:", err));
   }, []);
