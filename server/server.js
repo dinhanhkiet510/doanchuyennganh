@@ -22,7 +22,7 @@ app.use(cors({
   credentials: true,
 }));
 app.use(session({
-  secret: "secretKey",
+  secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
   cookie: {
@@ -49,10 +49,10 @@ const db = mysql.createConnection({
 
  db.connect(err => {
     if(err) {
-      console.log("❌ Lỗi kết nối MySQL, retry sau 2s...", err);
+      console.log("Lỗi kết nối MySQL, retry sau 2s...", err);
       setTimeout(handleDisconnect, 2000);
     } else {
-      console.log("✅ MySQL connected");
+      console.log("MySQL connected");
     }
   });
 
