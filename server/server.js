@@ -19,10 +19,14 @@ const PORT = 5000;
 
 app.use(bodyParser.json());
 app.use(cors({
-  origin: ["http://localhost:3000",
-  "https://doanchuyennganh.vercel.app"], // frontend deploy trên Vercel
+  origin: [
+    "http://localhost:3000",            // dev local
+    "https://doanchuyennganh.vercel.app", // frontend Vercel
+  ],
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
   credentials: true
-}));  
+}));
 app.use(session({
   secret: "secretKey",
   resave: false,

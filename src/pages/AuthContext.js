@@ -9,7 +9,7 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const res = await fetch("http://localhost:5000/api/current_user", {
+        const res = await fetch("${process.env.REACT_APP_API_URL}/api/current_user", {
           credentials: "include",
         });
         const data = await res.json();
@@ -34,7 +34,7 @@ export const AuthProvider = ({ children }) => {
   // Logout
   const logout = async () => {
     try {
-      await fetch("http://localhost:5000/api/logout", {
+      await fetch("${process.env.REACT_APP_API_URL}/api/logout", {
         method: "POST",
         credentials: "include",
       });
