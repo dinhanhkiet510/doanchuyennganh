@@ -31,69 +31,51 @@ function Header() {
     navigate("/login");
   };
 
+  // Đóng menu khi click bất kỳ link nào
   const handleLinkClick = () => {
     setMenuOpen(false);
     setDropdownOpen(false);
+    setSearchOpen(false);
   };
 
   return (
     <div className="header">
       <div className="logo">SPEAKER</div>
 
+      {/* Menu toggle mobile */}
       <button className="menu-toggle" onClick={() => setMenuOpen(!menuOpen)}>☰</button>
 
       <ul className={`nav ${menuOpen ? "show" : ""}`}>
-        <li>
-          <Link to="/" onClick={handleLinkClick}>HOME</Link>
-        </li>
+        <li><Link to="/" onClick={handleLinkClick}>HOME</Link></li>
 
+        {/* Dropdown */}
         <li
           className={`dropdown ${dropdownOpen ? "open" : ""}`}
-          onMouseEnter={() => setDropdownOpen(true)}
-          onMouseLeave={() => setDropdownOpen(false)}
+          onMouseEnter={() => window.innerWidth > 768 && setDropdownOpen(true)}
+          onMouseLeave={() => window.innerWidth > 768 && setDropdownOpen(false)}
         >
-          <Link to="#" className="dropdown-toggle" onClick={(e) => e.preventDefault()}>
+          <div className="dropdown-toggle" onClick={() => setDropdownOpen(!dropdownOpen)}>
             PRODUCT
-          </Link>
+          </div>
 
           <ul className="dropdown-menu">
-            <li>
-              <Link to="/products/category/2" onClick={handleLinkClick}>SPEAKER</Link>
-            </li>
-            <li>
-              <Link to="/products/category/3" onClick={handleLinkClick}>HEADPHONE</Link>
-            </li>
-            <li>
-              <Link to="/products/category/1" onClick={handleLinkClick}>AMPS</Link>
-            </li>
+            <li><Link to="/products/category/2" onClick={handleLinkClick}>SPEAKER</Link></li>
+            <li><Link to="/products/category/3" onClick={handleLinkClick}>HEADPHONE</Link></li>
+            <li><Link to="/products/category/1" onClick={handleLinkClick}>AMPS</Link></li>
           </ul>
         </li>
 
-        <li>
-          <Link to="/about" onClick={handleLinkClick}>ABOUT US</Link>
-        </li>
-        <li>
-          <Link to="/contact" onClick={handleLinkClick}>CONTACT</Link>
-        </li>
+        <li><Link to="/about" onClick={handleLinkClick}>ABOUT US</Link></li>
+        <li><Link to="/contact" onClick={handleLinkClick}>CONTACT</Link></li>
 
         {!user ? (
-          <li className="auth">
-            <Link to="/login" onClick={handleLinkClick}>
-              <i className="fas fa-user"></i> LOGIN
-            </Link>
-          </li>
+          <li className="auth"><Link to="/login" onClick={handleLinkClick}><i className="fas fa-user"></i> LOGIN</Link></li>
         ) : (
           <li className="auth user-logout">
-            <Link
-              to="/profile"
-              className="user-name text-decoration-none"
-              onClick={handleLinkClick}
-            >
+            <Link to="/profile" className="user-name" onClick={handleLinkClick}>
               <i className="fas fa-user"></i> {user.name}
             </Link>
-            <button onClick={handleLogout} className="btn-logout">
-              LOG OUT
-            </button>
+            <button onClick={handleLogout} className="btn-logout">LOG OUT</button>
           </li>
         )}
 
@@ -115,9 +97,7 @@ function Header() {
               {suggestions.length > 0 && (
                 <ul className="search-suggestions">
                   {suggestions.map((s) => {
-                    const imgSrc = s.img?.startsWith("http")
-                      ? s.img
-                      : `${window.location.origin}/${s.img}`;
+                    const imgSrc = s.img?.startsWith("http") ? s.img : `${window.location.origin}/${s.img}`;
                     return (
                       <li key={s.id}>
                         <Link
@@ -125,7 +105,6 @@ function Header() {
                           onClick={() => {
                             setSearchTerm("");
                             setSuggestions([]);
-                            setSearchOpen(false);
                             handleLinkClick();
                           }}
                         >
