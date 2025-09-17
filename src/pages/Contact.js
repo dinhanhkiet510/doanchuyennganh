@@ -24,7 +24,7 @@ function Contact() {
     const payload = { ...formData, customer_id: user ? user.id : null };
 
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/contact`, {
+      const res = await fetch(`https://doanchuyennganh.onrender.com/contact`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
