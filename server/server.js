@@ -624,24 +624,32 @@ app.get("/api/orders/my-orders/:customerId", async (req, res) => {
   }
 });
 
-// ================= API Chatbot =================
+/// ================= API Chatbot =================
 app.post("/chat", async (req, res) => {
   try {
     const { message } = req.body;
-    if (!message) return res.status(400).json({ error: "Message is required" });
+    console.log("📩 Chat message:", message);
+
+    if (!message) {
+      return res.status(400).json({ error: "Message is required" });
+    }
 
     // 1. Tìm sản phẩm theo tên
-    const productResults = await query(
-      "SELECT name, price, stock, img FROM products WHERE name LIKE ?",
-      [`%${message}%`]
-    );
+    try {
+      const productResults = await query(
+        "SELECT name, price, stock, img FROM products WHERE name LIKE ?",
+        [`%${message}%`]
+      );
 
-    if (productResults.length > 0) {
-      let reply = "<b>Thông tin sản phẩm bạn quan tâm:</b><br/>";
-      productResults.forEach((p) => {
-        reply += `- <b>${p.name}</b><br/>Giá: ${p.price} VND | SL: ${p.stock}<br/><img src="/${p.img}" alt="sản phẩm" style="max-width:120px"/><br/><br/>`;
-      });
-      return res.json({ reply });
+      if (productResults.length > 0) {
+        let reply = "<b>Thông tin sản phẩm bạn quan tâm:</b><br/>";
+        productResults.forEach((p) => {
+          reply += `- <b>${p.name}</b><br/>Giá: ${p.price} VND | SL: ${p.stock}<br/><img src="/${p.img}" alt="sản phẩm" style="max-width:120px"/><br/><br/>`;
+        });
+        return res.json({ reply });
+      }
+    } catch (dbErr) {
+      console.error("❌ DB error in /chat:", dbErr);
     }
 
     // 2. Tìm theo danh mục
@@ -655,6 +663,7 @@ app.post("/chat", async (req, res) => {
       headphone: 3,
       headphones: 3,
     };
+
     const categoryId = Object.entries(categoryMap).find(([kw]) =>
       message.toLowerCase().includes(kw)
     )?.[1];
@@ -680,13 +689,21 @@ app.post("/chat", async (req, res) => {
     }
 
     // 3. Nếu không tìm thấy gì thì gọi Gemini
+    if (typeof callGeminiWithRetry !== "function") {
+      console.warn("⚠ callGeminiWithRetry chưa được định nghĩa!");
+      return res.json({
+        reply: "🤖 Xin lỗi, chatbot chưa được cấu hình AI!",
+      });
+    }
+
     const aiReply = await callGeminiWithRetry(
       `Người dùng hỏi: "${message}". Nếu liên quan sản phẩm, hãy trả lời gợi ý. Nếu không liên quan sản phẩm, trả lời như một trợ lý AI thân thiện.`
     );
+
     res.json({ reply: aiReply || "🤖 Xin lỗi, tôi chưa có câu trả lời cho bạn." });
   } catch (err) {
-    console.error("Chatbot error:", err);
-    res.status(500).json({ error: "Chatbot bị lỗi" });
+    console.error("❌ Chatbot error:", err);
+    res.status(500).json({ error: "Chatbot bị lỗi", detail: err.message });
   }
 });
 
