@@ -318,7 +318,7 @@ app.post("/login", async (req, res) => {
     const customer = await query("SELECT * FROM customers WHERE username = ? AND password = ?", [username, password]);
     if (customer.length) {
       req.session.user = {
-        id: customer[0].id,
+        id: customer[0].admin_id,
         name: customer[0].name,
         email: customer[0].email,
         username: customer[0].username,

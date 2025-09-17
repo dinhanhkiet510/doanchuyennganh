@@ -182,7 +182,7 @@ function Products() {
                   <div className="product-info text-center mt-3">
                     <h5 className="product-name">{product.name}</h5>
                     <p className="product-price">
-                      FROM {product.price.toLocaleString()} VND
+                      FROM {product.price.toLocaleString()} $
                     </p>
                   </div>
                 </div>
