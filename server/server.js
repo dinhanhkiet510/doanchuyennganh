@@ -34,7 +34,7 @@ async function initDB() {
     port: process.env.MYSQLPORT || 3306,
     ssl: { rejectUnauthorized: false }
   });
-  console.log("✅ MySQL connected");
+  console.log("MySQL connected");
 }
 initDB();
 
@@ -156,30 +156,6 @@ app.get('/auth/facebook/callback', passport.authenticate('facebook',{failureRedi
   res.redirect('http://localhost:3000');
 });
 
-// --- API trả về user cho React ---
-app.get("/api/current_user", (req, res) => {
-  if (!req.session.user) return res.json({ user: null });
-
-  const { id } = req.session.user;
-  const sql = "SELECT id, name, email, provider FROM customers WHERE id = ? LIMIT 1";
-  db.query(sql, [id], (err, results) => {
-    if (err) {
-      console.error("Lỗi truy vấn user:", err);
-      return res.status(500).json({ user: null });
-    }
-
-    if (results.length === 0) return res.json({ user: null });
-    res.json({ user: results[0] });
-  });
-});
-
-
-// Logout
-app.post("/api/logout", (req, res) => {
-  req.session.destroy();
-  res.sendStatus(200);
-});
-
 // Cấu hình transporter Gmail
 const transporter = nodemailer.createTransport({
   service: "gmail",
@@ -187,6 +163,25 @@ const transporter = nodemailer.createTransport({
     user: "dinhanhkiet510@gmail.com",      // Thay bằng email gửi
     pass: "tysp bcrx wsyh xmru",   // Thay bằng app password
   },
+});
+
+// --- API trả về user cho React ---
+app.get("/api/current_user", async (req, res) => {
+  if (!req.session.user) return res.json({ user: null });
+  try {
+    const { id } = req.session.user;
+    const results = await queryAsync("SELECT id, name, email, provider FROM customers WHERE id = ? LIMIT 1", [id]);
+    res.json({ user: results[0] || null });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ user: null });
+  }
+});
+
+// Logout
+app.post("/api/logout", (req, res) => {
+  req.session.destroy();
+  res.sendStatus(200);
 });
 
 // API: Lấy sản phẩm theo category_id,sắp xếp theo param sort
@@ -222,7 +217,6 @@ app.get('/products/category/:categoryId', (req, res) => {
     res.json(results);
   });
 });
-
 
 // API tìm kiếm 
 app.get('/api/products/search', (req, res) => {
@@ -538,61 +532,6 @@ app.get("/customers", (req, res) => {
   db.query("SELECT * FROM customers", (err, results) => {
     if (err) return res.status(500).json({ error: err });
     res.json(results);
-  });
-});
-
-// API lấy đơn hàng của khách
-app.get("/api/orders/my-orders/:customerId", (req, res) => {
-  const customerId = req.params.customerId;
-
-  const sql = `
-    SELECT 
-      o.id AS order_id,
-      o.customer_id,
-      c.name AS customer_name,
-      o.order_date,
-      o.status,
-      oi.product_id,
-      oi.name AS product_name,
-      oi.quantity,
-      oi.price,
-      p.img AS product_img
-    FROM orders o
-    JOIN order_items oi ON o.id = oi.order_id
-    JOIN products p ON oi.product_id = p.id
-    JOIN customers c ON o.customer_id = c.id
-    WHERE o.customer_id = ?
-    ORDER BY o.id DESC
-  `;
-
-  db.query(sql, [customerId], (err, results) => {
-    if (err) {
-      console.error("Lỗi truy vấn:", err);
-      return res.status(500).json({ error: "Lỗi server" });
-    }
-
-    // Gom nhóm sản phẩm cùng đơn hàng
-    const ordersMap = {};
-    results.forEach(row => {
-      if (!ordersMap[row.order_id]) {
-        ordersMap[row.order_id] = {
-          id: row.order_id,
-          customer_name: row.customer_name,
-          order_date: row.order_date,
-          status: row.status,
-          items: []
-        };
-      }
-      ordersMap[row.order_id].items.push({
-        product_id: row.product_id,
-        name: row.product_name,
-        quantity: row.quantity,
-        price: parseFloat(row.price),
-        img: row.product_img
-      });
-    });
-
-    res.json(Object.values(ordersMap));
   });
 });
 
