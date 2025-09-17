@@ -369,7 +369,7 @@ app.post("/checkout", async (req, res) => {
   try {
     await query("START TRANSACTION");
 
-    // Lưu checkout
+     // Lưu checkout
     await query(
       "INSERT INTO checkout (fullname, shipping_address, phone, email, customer_id) VALUES (?, ?, ?, ?, ?)",
       [
@@ -466,8 +466,6 @@ app.post("/checkout", async (req, res) => {
     res.status(500).json({ message: err.message || "Checkout failed" });
   }
 });
-
-
 
 // =================== CONTACT ===================
 app.post("api/contact", (req, res) => {
