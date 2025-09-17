@@ -691,6 +691,8 @@ app.post("/chat", async (req, res) => {
 });
 
 // ---------------- SOCKET.IO ----------------
+// Map lưu userId -> socketId
+const onlineUsers = new Map();
 // Tạo server HTTP dựa trên express
 const server = http.createServer(app);
 // Khởi tạo io từ server HTTP
@@ -708,6 +710,7 @@ io.on("connection", (socket) => {
     if (!userId || !role) return;
     socket.userId = userId;
     socket.role = role;
+    onlineUsers.set(userId, socket.id);
     console.log(`${role} joined with ID: ${userId}`);
   });
 
