@@ -621,29 +621,51 @@ app.post("/chat", async (req, res) => {
     if (!message) return res.status(400).json({ error: "Message is required" });
 
     // 1. Tìm sản phẩm theo tên
-    const productResults = await queryAsync("SELECT name, price, stock, img FROM products WHERE name LIKE ?", [`%${message}%`]);
+    const productResults = await query(
+      "SELECT name, price, stock, img FROM products WHERE name LIKE ?",
+      [`%${message}%`]
+    );
+
     if (productResults.length > 0) {
       let reply = "<b>Thông tin sản phẩm bạn quan tâm:</b><br/>";
-      productResults.forEach(p => {
+      productResults.forEach((p) => {
         reply += `- <b>${p.name}</b><br/>Giá: ${p.price} VND | SL: ${p.stock}<br/><img src="/${p.img}" alt="sản phẩm" style="max-width:120px"/><br/><br/>`;
       });
       return res.json({ reply });
     }
 
     // 2. Tìm theo danh mục
-    const categoryMap = { amp: 1, amps: 1, loa: 2, speaker: 2, speakers: 2, "tai nghe": 3, headphone: 3, headphones: 3 };
-    const categoryId = Object.entries(categoryMap).find(([kw]) => message.toLowerCase().includes(kw))?.[1];
+    const categoryMap = {
+      amp: 1,
+      amps: 1,
+      loa: 2,
+      speaker: 2,
+      speakers: 2,
+      "tai nghe": 3,
+      headphone: 3,
+      headphones: 3,
+    };
+    const categoryId = Object.entries(categoryMap).find(([kw]) =>
+      message.toLowerCase().includes(kw)
+    )?.[1];
 
     if (categoryId) {
-      const catResults = await queryAsync("SELECT name, price, stock, img FROM products WHERE category_id = ? LIMIT 5", [categoryId]);
+      const catResults = await query(
+        "SELECT name, price, stock, img FROM products WHERE category_id = ? LIMIT 5",
+        [categoryId]
+      );
+
       if (catResults.length > 0) {
-        let reply = "<b>Một số sản phẩm nổi bật trong danh mục bạn quan tâm:</b><br/>";
-        catResults.forEach(p => {
+        let reply =
+          "<b>Một số sản phẩm nổi bật trong danh mục bạn quan tâm:</b><br/>";
+        catResults.forEach((p) => {
           reply += `- <b>${p.name}</b><br/>Giá: ${p.price} VND | SL: ${p.stock}<br/><img src="/${p.img}" alt="sản phẩm" style="max-width:120px"/><br/><br/>`;
         });
         return res.json({ reply });
       } else {
-        return res.json({ reply: "⚠ Hiện chưa có sản phẩm nào trong danh mục này!" });
+        return res.json({
+          reply: "⚠ Hiện chưa có sản phẩm nào trong danh mục này!",
+        });
       }
     }
 
@@ -652,7 +674,6 @@ app.post("/chat", async (req, res) => {
       `Người dùng hỏi: "${message}". Nếu liên quan sản phẩm, hãy trả lời gợi ý. Nếu không liên quan sản phẩm, trả lời như một trợ lý AI thân thiện.`
     );
     res.json({ reply: aiReply || "🤖 Xin lỗi, tôi chưa có câu trả lời cho bạn." });
-
   } catch (err) {
     console.error("Chatbot error:", err);
     res.status(500).json({ error: "Chatbot bị lỗi" });
@@ -660,22 +681,9 @@ app.post("/chat", async (req, res) => {
 });
 
 // ---------------- SOCKET.IO ----------------
-const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: ["https://doanchuyennganh.vercel.app"],
-    methods: ["GET", "POST"],
-    credentials: true,
-  },
-});
-
-// Map userId -> socketId
-const onlineUsers = new Map();
-
 io.on("connection", (socket) => {
   console.log("🔌 New client connected:", socket.id);
 
-  // Khi client join
   socket.on("join", ({ userId, role }) => {
     if (!userId || !role) return;
     socket.userId = userId;
@@ -684,7 +692,6 @@ io.on("connection", (socket) => {
     console.log(`${role} joined with ID: ${userId}`);
   });
 
-  // Gửi tin nhắn
   socket.on("sendMessage", async ({ receiverId, message }) => {
     if (!socket.userId || !socket.role) {
       console.log("User not joined, cannot send message");
@@ -698,24 +705,25 @@ io.on("connection", (socket) => {
         "INSERT INTO messages (sender_id, receiver_id, message, is_admin_sender) VALUES (?, ?, ?, ?)",
         [socket.userId, receiverId, message, isAdminSender]
       );
+
       console.log("💾 Message saved:", message, "ID:", result.insertId);
 
       const payload = {
         id: result.insertId,
         senderId: socket.userId,
         receiverId,
-        senderRole: isAdminSender ? "admin" : "customer",
+        senderRole: isAdminSender ? "admin" : "user",
         message,
         created_at: new Date(),
       };
 
-      // Gửi cho người nhận (nếu online)
+      // Gửi cho người nhận nếu online
       const receiverSocketId = onlineUsers.get(receiverId);
-      if (receiverSocketId) io.to(receiverSocketId).emit("receiveMessage", payload);
+      if (receiverSocketId)
+        io.to(receiverSocketId).emit("receiveMessage", payload);
 
       // Gửi lại cho người gửi
       socket.emit("receiveMessage", payload);
-
     } catch (err) {
       console.error("❌ Error saving message:", err);
     }
@@ -726,6 +734,7 @@ io.on("connection", (socket) => {
     if (socket.userId) onlineUsers.delete(socket.userId);
   });
 });
+
 
 // API lấy toàn bộ chat giữa customer và admin
 app.get("/messages/:customerId", async (req, res) => {
