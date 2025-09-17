@@ -62,20 +62,10 @@ async function initDB() {
     port: process.env.MYSQLPORT || 3306,
     ssl: { rejectUnauthorized: false }
   });
+  const queryAsync = util.promisify(db.query).bind(db);
   console.log("MySQL connected");
 }
 initDB();
-
-// Helper query
-async function query(sql, params=[]) {
-  try {
-    const [rows] = await db.execute(sql, params);
-    return rows;
-  } catch(err) {
-    throw err;
-  }
-}
-const queryAsync = util.promisify(db.query).bind(db);
 
 // Gemini AI
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
