@@ -47,6 +47,13 @@ async function query(sql, params=[]) {
   return rows;
 }
 
+// Query raw (cho lệnh không hỗ trợ prepared statements)
+async function queryRaw(sql) {
+  if (!db) throw new Error("DB not connected");
+  const [rows] = await db.query(sql); // dùng query thay vì execute
+  return rows;
+}
+
 // =================== SESSION ===================
 const sessionStore = new MySQLStore({
   host: process.env.MYSQLHOST,
@@ -357,7 +364,8 @@ app.post("/checkout", async (req, res) => {
   }
 
   try {
-    await query("START TRANSACTION");
+    // Bắt đầu transaction
+    await queryRaw("START TRANSACTION");
 
     // Lưu checkout
     await query(
@@ -370,12 +378,14 @@ app.post("/checkout", async (req, res) => {
       "INSERT INTO orders (customer_id, customer_name, employee_id, order_date, status) VALUES (?, ?, NULL, NOW(), ?)",
       [customer_id, fullname, 'pending']
     );
-
     const orderId = orderResult.insertId;
 
     // Lưu order items
     const itemsData = order_items.map(item => [orderId, item.product_id, item.name, item.quantity, item.price]);
-    await query("INSERT INTO order_items (order_id, product_id, name, quantity, price) VALUES ?", [itemsData]);
+    await query(
+      "INSERT INTO order_items (order_id, product_id, name, quantity, price) VALUES ?",
+      [itemsData]
+    );
 
     // Cập nhật stock
     for (let item of order_items) {
@@ -386,7 +396,8 @@ app.post("/checkout", async (req, res) => {
       if (result.affectedRows === 0) throw new Error(`Insufficient stock for product ID ${item.product_id}`);
     }
 
-    await query("COMMIT");
+    // Commit transaction
+    await queryRaw("COMMIT");
 
     // Gửi email xác nhận
     const totalPrice = order_items.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -396,8 +407,7 @@ app.post("/checkout", async (req, res) => {
         <td style="padding:8px; border:1px solid #ddd; text-align:center;">${item.quantity}</td>
         <td style="padding:8px; border:1px solid #ddd; text-align:right;">${item.price.toLocaleString()} $</td>
         <td style="padding:8px; border:1px solid #ddd; text-align:right;">${(item.price*item.quantity).toLocaleString()} $</td>
-      </tr>`
-    ).join('');
+      </tr>`).join('');
 
     const mailOptions = {
       from: '"SPEAKER STORE" <dinhanhkiet510@gmail.com>',
@@ -429,13 +439,14 @@ app.post("/checkout", async (req, res) => {
     };
 
     transporter.sendMail(mailOptions, (error, info) => {
-      if (error) return res.status(201).json({ order_id: orderId, message: "Order created but email not sent." });
+      if (error)
+        return res.status(201).json({ order_id: orderId, message: "Order created but email not sent." });
       res.status(201).json({ order_id: orderId, message: "Order created and email sent." });
     });
 
   } catch (err) {
-    console.error(err);
-    await query("ROLLBACK");
+    console.error("❌ Checkout error:", err);
+    await queryRaw("ROLLBACK");
     res.status(500).json({ message: err.message || "Checkout failed" });
   }
 });
