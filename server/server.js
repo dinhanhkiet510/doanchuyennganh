@@ -442,6 +442,7 @@ app.post("/checkout", async (req, res) => {
 
 // =================== CONTACT ===================
 app.post("/contact", (req, res) => {
+  console.log("📩 Body nhận được:", req.body);
   const { name, email, subject, message, customer_id } = req.body;
 
   // Validate
