@@ -11,10 +11,6 @@ function Header() {
   const { totalQuantity } = useContext(CartContext);
   const { user, logout } = useContext(AuthContext);
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const closeDropdown = () => setDropdownOpen(false);
-  const toggleDropdown = () => {
-    setDropdownOpen(!dropdownOpen);
-  };
   const navigate = useNavigate();
 
   // Fetch product suggestions
@@ -31,9 +27,14 @@ function Header() {
 
   const handleLogout = () => {
     logout();
+    setMenuOpen(false);
     navigate("/login");
   };
 
+  const handleLinkClick = () => {
+    setMenuOpen(false);
+    setDropdownOpen(false);
+  };
 
   return (
     <div className="header">
@@ -42,50 +43,51 @@ function Header() {
       <button className="menu-toggle" onClick={() => setMenuOpen(!menuOpen)}>☰</button>
 
       <ul className={`nav ${menuOpen ? "show" : ""}`}>
-        <li><Link to="/">HOME</Link></li>
+        <li>
+          <Link to="/" onClick={handleLinkClick}>HOME</Link>
+        </li>
+
         <li
           className={`dropdown ${dropdownOpen ? "open" : ""}`}
           onMouseEnter={() => setDropdownOpen(true)}
           onMouseLeave={() => setDropdownOpen(false)}
         >
-          <Link to="#" className="dropdown-toggle" onClick={toggleDropdown}>
+          <Link to="#" className="dropdown-toggle" onClick={(e) => e.preventDefault()}>
             PRODUCT
           </Link>
 
           <ul className="dropdown-menu">
             <li>
-              <Link to="/products/category/2" onClick={closeDropdown}>
-                SPEAKER
-              </Link>
+              <Link to="/products/category/2" onClick={handleLinkClick}>SPEAKER</Link>
             </li>
             <li>
-              <Link to="/products/category/3" onClick={closeDropdown}>
-                HEADPHONE
-              </Link>
+              <Link to="/products/category/3" onClick={handleLinkClick}>HEADPHONE</Link>
             </li>
             <li>
-              <Link to="/products/category/1" onClick={closeDropdown}>
-                AMPS
-              </Link>
+              <Link to="/products/category/1" onClick={handleLinkClick}>AMPS</Link>
             </li>
           </ul>
         </li>
-        <li><Link to="/about">ABOUT US</Link></li>
-        <li><Link to="/contact">CONTACT</Link></li>
 
-        {/* LOGIN / USER */}
+        <li>
+          <Link to="/about" onClick={handleLinkClick}>ABOUT US</Link>
+        </li>
+        <li>
+          <Link to="/contact" onClick={handleLinkClick}>CONTACT</Link>
+        </li>
+
         {!user ? (
           <li className="auth">
-            <Link to="/login">
+            <Link to="/login" onClick={handleLinkClick}>
               <i className="fas fa-user"></i> LOGIN
             </Link>
           </li>
         ) : (
           <li className="auth user-logout">
             <Link
-              to="/profile" // chuyển sang trang profile
+              to="/profile"
               className="user-name text-decoration-none"
-              style={{ cursor: "pointer" }}
+              onClick={handleLinkClick}
             >
               <i className="fas fa-user"></i> {user.name}
             </Link>
@@ -124,6 +126,7 @@ function Header() {
                             setSearchTerm("");
                             setSuggestions([]);
                             setSearchOpen(false);
+                            handleLinkClick();
                           }}
                         >
                           <img src={imgSrc} alt={s.name} className="suggestion-img" />
@@ -140,7 +143,7 @@ function Header() {
 
         {/* Cart */}
         <li className="cart">
-          <Link to="/cart">
+          <Link to="/cart" onClick={handleLinkClick}>
             <i className="fas fa-shopping-cart"></i>
             {totalQuantity > 0 && <span className="cart-count">{totalQuantity}</span>}
           </Link>
