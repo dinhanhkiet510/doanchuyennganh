@@ -379,7 +379,7 @@ app.post("/checkout", async (req, res) => {
     // Insert checkout
     await query(
       "INSERT INTO checkout (fullname, shipping_address, phone, email, customer_id) VALUES (?, ?, ?, ?, ?)",
-      [fullname, shipping_address, phone, email, customer_id]
+      [fullname, shipping_address, phone, email, customer_id ?? null]
     );
 
     // Insert order
