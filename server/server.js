@@ -356,54 +356,73 @@ app.post("/login", async (req, res) => {
 app.post("/checkout", async (req, res) => {
   let { fullname, shipping_address, phone, email, customer_id, order_items } = req.body;
 
-  if (!customer_id && req.session.user?.id) customer_id = req.session.user.id;
+  if (!customer_id && req.session.user?.id) {
+    customer_id = req.session.user.id;
+  }
 
   if (!fullname || !shipping_address || !phone || !email || !order_items?.length) {
     return res.status(400).json({ message: "Missing required fields or empty order items" });
   }
 
+  const insertedIds = {
+    checkoutId: null,
+    orderId: null,
+    orderItemIds: [],
+  };
+
   try {
-    await query("BEGIN");
-
-    // Lưu checkout
-    await query(
+    // 1️⃣ Thêm checkout
+    const checkoutResult = await query(
       "INSERT INTO checkout (fullname, shipping_address, phone, email, customer_id) VALUES (?, ?, ?, ?, ?)",
-      [fullname, shipping_address, phone, email, customer_id || null]
+      [fullname, shipping_address, phone, email, customer_id ?? null]
     );
+    insertedIds.checkoutId = checkoutResult.insertId;
 
-    // Lưu order
+    // 2️⃣ Thêm order
     const orderResult = await query(
       "INSERT INTO orders (customer_id, customer_name, employee_id, order_date, status) VALUES (?, ?, NULL, NOW(), ?)",
-      [customer_id || null, fullname, 'pending']
+      [customer_id ?? null, fullname, 'pending']
     );
     const orderId = orderResult.insertId;
+    insertedIds.orderId = orderId;
 
-    // Lưu order items
-    const itemsData = order_items.map(item => [orderId, item.product_id, item.name, item.quantity, item.price]);
-    await query(
-      "INSERT INTO order_items (order_id, product_id, name, quantity, price) VALUES ?",
-      [itemsData]
-    );
-
-    // Cập nhật stock
+    // 3️⃣ Thêm order_items & cập nhật stock
     for (let item of order_items) {
-      const result = await query(
+      const itemResult = await query(
+        "INSERT INTO order_items (order_id, product_id, name, quantity, price) VALUES (?, ?, ?, ?, ?)",
+        [orderId, item.product_id, item.name, item.quantity, item.price]
+      );
+      insertedIds.orderItemIds.push(itemResult.insertId);
+
+      const stockResult = await query(
         "UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?",
         [item.quantity, item.product_id, item.quantity]
       );
-      if (result.affectedRows === 0) throw new Error(`Insufficient stock for product ID ${item.product_id}`);
+
+      if (stockResult.affectedRows === 0) {
+        // Stock không đủ -> xoá các bản ghi đã thêm
+        if (insertedIds.orderItemIds.length) {
+          await query(`DELETE FROM order_items WHERE id IN (${insertedIds.orderItemIds.join(",")})`);
+        }
+        if (insertedIds.orderId) {
+          await query(`DELETE FROM orders WHERE id = ?`, [insertedIds.orderId]);
+        }
+        if (insertedIds.checkoutId) {
+          await query(`DELETE FROM checkout WHERE id = ?`, [insertedIds.checkoutId]);
+        }
+
+        return res.status(400).json({ message: `Insufficient stock for product ID ${item.product_id}` });
+      }
     }
 
-    await query("COMMIT");
-
-    // Gửi email
-    const totalPrice = order_items.reduce((sum, i) => sum + i.price * i.quantity, 0);
-    const itemsHtml = order_items.map(i => `
-      <tr>
-        <td style="padding:8px; border:1px solid #ddd;">${i.name}</td>
-        <td style="padding:8px; border:1px solid #ddd; text-align:center;">${i.quantity}</td>
-        <td style="padding:8px; border:1px solid #ddd; text-align:right;">${i.price.toLocaleString()} $</td>
-        <td style="padding:8px; border:1px solid #ddd; text-align:right;">${(i.price * i.quantity).toLocaleString()} $</td>
+    // ✅ Gửi email xác nhận
+    const totalPrice = order_items.reduce((sum, item) => sum + (item.price ?? 0) * (item.quantity ?? 0), 0);
+    let itemsHtml = order_items.map(item =>
+      `<tr>
+        <td style="padding:8px; border:1px solid #ddd;">${item.name}</td>
+        <td style="padding:8px; border:1px solid #ddd; text-align:center;">${item.quantity}</td>
+        <td style="padding:8px; border:1px solid #ddd; text-align:right;">${(item.price ?? 0).toLocaleString()} $</td>
+        <td style="padding:8px; border:1px solid #ddd; text-align:right;">${((item.price ?? 0)*(item.quantity ?? 0)).toLocaleString()} $</td>
       </tr>`).join('');
 
     const mailOptions = {
@@ -442,10 +461,11 @@ app.post("/checkout", async (req, res) => {
 
   } catch (err) {
     console.error("❌ Checkout error:", err);
-    await query("ROLLBACK");
+    // Không cần rollback transaction vì đã xoá thủ công khi lỗi stock
     res.status(500).json({ message: err.message || "Checkout failed" });
   }
 });
+
 
 // =================== CONTACT ===================
 app.post("api/contact", (req, res) => {
