@@ -11,7 +11,6 @@ const nodemailer = require("nodemailer");
 const mysql = require("mysql2/promise");
 const http = require("http");
 const { Server } = require("socket.io");
-const util = require("util");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 const app = express();
@@ -20,20 +19,41 @@ app.set("trust proxy", 1);
 // =================== MIDDLEWARE ===================
 app.use(bodyParser.json());
 app.use(cors({
-  origin: 'https://doanchuyennganh.vercel.app',
+  origin: "https://doanchuyennganh.vercel.app",
   credentials: true,
-  allowedHeaders: ['Content-Type'],
-  methods: ['GET','POST','PUT','DELETE','OPTIONS']
+  allowedHeaders: ["Content-Type"],
+  methods: ["GET","POST","PUT","DELETE","OPTIONS"]
 }));
+
+// =================== DATABASE ===================
+let db;
+
+async function initDB() {
+  db = await mysql.createConnection({
+    host: process.env.MYSQLHOST,
+    user: process.env.MYSQLUSER,
+    password: process.env.MYSQLPASSWORD,
+    database: process.env.MYSQLDATABASE,
+    port: process.env.MYSQLPORT || 3306,
+    ssl: { rejectUnauthorized: false }
+  });
+  console.log("✅ MySQL connected");
+}
+
+// Helper query
+async function query(sql, params=[]) {
+  if (!db) throw new Error("DB not connected");
+  const [rows] = await db.execute(sql, params);
+  return rows;
+}
+
+// =================== SESSION ===================
 const sessionStore = new MySQLStore({
   host: process.env.MYSQLHOST,
   port: process.env.MYSQLPORT || 3306,
   user: process.env.MYSQLUSER,
   password: process.env.MYSQLPASSWORD,
-  database: process.env.MYSQLDATABASE,
-  clearExpired: true,
-  checkExpirationInterval: 900000,
-  expiration: 86400000
+  database: process.env.MYSQLDATABASE
 });
 
 app.use(session({
@@ -50,50 +70,16 @@ app.use(session({
   }
 }));
 
-
-// =================== DATABASE ===================
-let db;
-let queryAsync;
-
-async function initDB() {
-  db = await mysql.createConnection({
-    host: process.env.MYSQLHOST,
-    user: process.env.MYSQLUSER,
-    password: process.env.MYSQLPASSWORD,
-    database: process.env.MYSQLDATABASE,
-    port: process.env.MYSQLPORT || 3306,
-    ssl: { rejectUnauthorized: false }
-  });
-  queryAsync = util.promisify(db.query).bind(db);
-  console.log("MySQL connected");
-}
-initDB();
-
-// Gemini AI
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-async function callGeminiWithRetry(prompt, retries = 3, delay = 2000) {
-  for(let i=0;i<retries;i++){
-    try {
-      const result = await model.generateContent({ contents:[{role:"user", parts:[{text:prompt}]}] });
-      return result.response.text();
-    } catch(err) {
-      if(err.status===503 && i<retries-1) await new Promise(r=>setTimeout(r, delay));
-      else throw err;
-    }
-  }
-}
-
+// =================== PASSPORT ===================
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Passport serialize/deserialize
-passport.serializeUser((user, done)=> done(null, user.id));
-passport.deserializeUser(async (id, done)=>{
-  try{
-    const results = await query("SELECT id, name, email, provider FROM customers WHERE id=?", [id]);
-    done(null, results[0]);
-  } catch(err){ done(err,null); }
+passport.serializeUser((user, done) => done(null, user.id));
+passport.deserializeUser(async (id, done) => {
+  try {
+    const results = await query("SELECT id, name, email, provider FROM customers WHERE id = ?", [id]);
+    done(null, results[0] || null);
+  } catch(err) { done(err,null); }
 });
 
 // Google OAuth
@@ -101,20 +87,23 @@ passport.use(new GoogleStrategy({
   clientID: process.env.GOOGLE_CLIENT_ID,
   clientSecret: process.env.GOOGLE_CLIENT_SECRET,
   callbackURL: `${process.env.CALLBACK_URL}/google/callback`
-}, async (accessToken, refreshToken, profile, done)=>{
-  try{
+}, async (accessToken, refreshToken, profile, done) => {
+  try {
     const email = profile.emails[0].value;
-    const existing = await query("SELECT * FROM customers WHERE email=?", [email]);
+    const existing = await query("SELECT * FROM customers WHERE email = ?", [email]);
     let userId;
-    if(existing.length>0){
+    if (existing.length) {
       await query("UPDATE customers SET provider='google', provider_id=? WHERE email=?", [profile.id,email]);
       userId = existing[0].id;
     } else {
-      const result = await query("INSERT INTO customers (name,email,provider,provider_id) VALUES (?,?, 'google', ?)", [profile.displayName,email,profile.id]);
+      const result = await query(
+        "INSERT INTO customers (name,email,provider,provider_id) VALUES (?,?, 'google', ?)",
+        [profile.displayName,email,profile.id]
+      );
       userId = result.insertId;
     }
-    done(null, {id:userId, name:profile.displayName, email, provider:'google'});
-  } catch(err){ done(err,null); }
+    done(null, { id: userId, name: profile.displayName, email, provider: "google" });
+  } catch(err) { done(err,null); }
 }));
 
 // Facebook OAuth
@@ -122,76 +111,101 @@ passport.use(new FacebookStrategy({
   clientID: process.env.FACEBOOK_APP_ID,
   clientSecret: process.env.FACEBOOK_APP_SECRET,
   callbackURL: `${process.env.CALLBACK_URL}/facebook/callback`,
-  profileFields:['id','displayName','emails']
-}, async (accessToken, refreshToken, profile, done)=>{
-  try{
+  profileFields: ["id","displayName","emails"]
+}, async (accessToken, refreshToken, profile, done) => {
+  try {
     const email = profile.emails?.[0]?.value || `fb_${profile.id}@noemail.com`;
     const existing = await query("SELECT * FROM customers WHERE email=?", [email]);
     let userId;
-    if(existing.length>0){
+    if (existing.length) {
       await query("UPDATE customers SET provider='facebook', provider_id=? WHERE email=?", [profile.id,email]);
       userId = existing[0].id;
     } else {
-      const result = await query("INSERT INTO customers (name,email,provider,provider_id) VALUES (?,?, 'facebook', ?)", [profile.displayName,email,profile.id]);
+      const result = await query(
+        "INSERT INTO customers (name,email,provider,provider_id) VALUES (?,?, 'facebook', ?)",
+        [profile.displayName,email,profile.id]
+      );
       userId = result.insertId;
     }
-    done(null, {id:userId,name:profile.displayName,email,provider:'facebook'});
-  } catch(err){ done(err,null); }
+    done(null, { id: userId, name: profile.displayName, email, provider: "facebook" });
+  } catch(err) { done(err,null); }
 }));
 
 // OAuth routes
-app.get('/auth/google', passport.authenticate('google',{scope:['profile','email']}));
-app.get('/auth/google/callback', passport.authenticate('google',{failureRedirect:'/'}), (req,res)=>{
+app.get("/auth/google", passport.authenticate("google",{scope:["profile","email"]}));
+app.get("/auth/google/callback", passport.authenticate("google",{failureRedirect:"/"}), (req,res) => {
   req.session.user = req.user;
-  res.redirect('http://localhost:3000');
+  res.redirect("http://localhost:3000");
 });
 
-app.get('/auth/facebook', passport.authenticate('facebook',{scope:['email']}));
-app.get('/auth/facebook/callback', passport.authenticate('facebook',{failureRedirect:'/'}), (req,res)=>{
+app.get("/auth/facebook", passport.authenticate("facebook",{scope:["email"]}));
+app.get("/auth/facebook/callback", passport.authenticate("facebook",{failureRedirect:"/"}), (req,res) => {
   req.session.user = req.user;
-  res.redirect('http://localhost:3000');
+  res.redirect("http://localhost:3000");
 });
 
-// Cấu hình transporter Gmail
+// =================== MAIL ===================
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
-    user: "dinhanhkiet510@gmail.com",      // Thay bằng email gửi
-    pass: "tysp bcrx wsyh xmru",   // Thay bằng app password
-  },
+    user: process.env.MAIL_USER,
+    pass: process.env.MAIL_PASS
+  }
 });
 
-// --- API trả về user cho React ---
+// =================== API trả về user cho React ===================
 app.get("/api/current_user", async (req, res) => {
-  if (!req.session.user) return res.json({ user: null });
+  if (!req.session.user) return res.status(200).json({ user: null });
   try {
     const { id } = req.session.user;
-    const results = await queryAsync("SELECT id, name, email, provider FROM customers WHERE id = ? LIMIT 1", [id]);
-    res.json({ user: results[0] || null });
+    const results = await query("SELECT id, name, email, phone, address, username, avatar, provider FROM customers WHERE id = ? LIMIT 1", [id]);
+    res.status(200).json({ user: results[0] || null });
   } catch (err) {
-    console.error(err);
+    console.error("❌ Error fetching current user:", err);
     res.status(500).json({ user: null });
   }
 });
 
-// Logout
-app.post("/api/logout", (req, res) => {
-  req.session.destroy();
-  res.sendStatus(200);
+// =================== Logout ===================
+app.post("/api/logout", async (req, res) => {
+  try {
+    await new Promise((resolve, reject) => {
+      req.session.destroy(err => err ? reject(err) : resolve());
+    });
+    res.clearCookie("session_cookie_name", { path: "/", sameSite: "none", secure: true });
+    res.status(200).json({ message: "Logout successful" });
+  } catch (err) {
+    console.error("❌ Logout error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
+
 // =================== PRODUCTS ===================
+
+// Lấy tất cả sản phẩm
+app.get("/products", async (req, res) => {
+  try {
+    const results = await query("SELECT * FROM products");
+    res.json(results);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 // Lấy sản phẩm theo category_id & sort
-app.get('/products/category/:categoryId', async (req, res) => {
+app.get("/products/category/:categoryId", async (req, res) => {
   const categoryId = req.params.categoryId;
   const sort = req.query.sort || '';
   let orderBy = '';
-  switch(sort) {
+  switch (sort) {
     case 'price-asc': orderBy = 'ORDER BY price ASC'; break;
     case 'price-desc': orderBy = 'ORDER BY price DESC'; break;
     case 'name-asc': orderBy = 'ORDER BY name ASC'; break;
     case 'name-desc': orderBy = 'ORDER BY name DESC'; break;
   }
+
   try {
     const results = await query(`SELECT * FROM products WHERE category_id = ? ${orderBy}`, [categoryId]);
     res.json(results);
@@ -202,14 +216,13 @@ app.get('/products/category/:categoryId', async (req, res) => {
 });
 
 // Tìm kiếm sản phẩm
-app.get('/api/products/search', async (req, res) => {
+app.get("/api/products/search", async (req, res) => {
   const q = req.query.q || "";
   try {
-    const results = await query(`
-      SELECT id, name, img FROM products
-      WHERE name LIKE ?
-      LIMIT 3
-    `, [`%${q}%`]);
+    const results = await query(
+      `SELECT id, name, img FROM products WHERE name LIKE ? LIMIT 3`,
+      [`%${q}%`]
+    );
     res.json(results.map(p => ({ ...p, image: `${process.env.REACT_APP_API_URL}/uploads/${p.img}` })));
   } catch (err) {
     console.error(err);
@@ -218,149 +231,14 @@ app.get('/api/products/search', async (req, res) => {
 });
 
 // Lấy sản phẩm theo id
-app.get('/api/products/:id', async (req, res) => {
+app.get("/api/products/:id", async (req, res) => {
   const productId = req.params.id;
   try {
-    const results = await query('SELECT * FROM products WHERE id = ?', [productId]);
+    const results = await query("SELECT * FROM products WHERE id = ?", [productId]);
     if (!results.length) return res.status(404).json({ error: "Product not found" });
     res.json(results[0]);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Server error" });
-  }
-});
-
-// API CHECKOUT
-app.post('/checkout', async (req, res) => {
-  let { fullname, shipping_address, phone, email, customer_id, order_items } = req.body;
-
-  // Nếu customer_id không có, lấy từ session (đăng nhập bằng OAuth)
-  if (!customer_id && req.session.user?.id) {
-    customer_id = req.session.user.id;
-  }
-
-  if (!fullname || !shipping_address || !phone || !email || !order_items || order_items.length === 0) {
-    return res.status(400).json({ message: "Missing required fields or empty order items" });
-  }
-
-  try {
-    // --- Bắt đầu transaction ---
-    await new Promise((resolve, reject) => db.beginTransaction(err => err ? reject(err) : resolve()));
-
-    // 1. Lưu thông tin checkout
-    const checkoutResult = await new Promise((resolve, reject) => {
-      const sql = 'INSERT INTO checkout (fullname, shipping_address, phone, email, customer_id) VALUES (?, ?, ?, ?, ?)';
-      db.query(sql, [fullname, shipping_address, phone, email, customer_id], (err, result) => {
-        if (err) return reject(err);
-        resolve(result);
-      });
-    });
-
-    // 2. Lưu thông tin order
-    const orderResult = await new Promise((resolve, reject) => {
-      const sql = 'INSERT INTO orders (customer_id, customer_name, employee_id, order_date, status) VALUES (?, ?, NULL, NOW(), ?)';
-      db.query(sql, [customer_id, fullname, 'pending'], (err, result) => {
-        if (err) return reject(err);
-        resolve(result);
-      });
-    });
-
-    const orderId = orderResult.insertId;
-
-    // 3. Lưu order items
-    const itemsData = order_items.map(item => [orderId, item.product_id, item.name, item.quantity, item.price]);
-    await new Promise((resolve, reject) => {
-      const sql = 'INSERT INTO order_items (order_id, product_id, name, quantity, price) VALUES ?';
-      db.query(sql, [itemsData], (err) => err ? reject(err) : resolve());
-    });
-
-    // 4. Update stock
-    for (let item of order_items) {
-      await new Promise((resolve, reject) => {
-        const sql = 'UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?';
-        db.query(sql, [item.quantity, item.product_id, item.quantity], (err, result) => {
-          if (err) return reject(err);
-          if (result.affectedRows === 0) return reject(new Error(`Insufficient stock for product ID ${item.product_id}`));
-          resolve();
-        });
-      });
-    }
-
-    // --- Commit transaction ---
-    await new Promise((resolve, reject) => db.commit(err => err ? reject(err) : resolve()));
-
-    // --- Gửi email xác nhận ---
-    const totalPrice = order_items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-
-    let itemsHtml = '';
-    order_items.forEach(item => {
-      itemsHtml += `<tr>
-        <td style="padding:8px; border:1px solid #ddd;">${item.name}</td>
-        <td style="padding:8px; border:1px solid #ddd; text-align:center;">${item.quantity}</td>
-        <td style="padding:8px; border:1px solid #ddd; text-align:right;">${item.price.toLocaleString()} $</td>
-        <td style="padding:8px; border:1px solid #ddd; text-align:right;">${(item.price * item.quantity).toLocaleString()} $</td>
-      </tr>`;
-    });
-
-    const mailOptions = {
-      from: '"SPEAKER STORE" <dinhanhkiet510@gmail.com>',
-      to: email,
-      subject: `Order Confirmation #${orderId}`,
-      html: `
-        <h3>Hello ${fullname},</h3>
-        <p>Thank you for your order at our store. Below is your order information:</p>
-        <h4>Customer Information:</h4>
-        <p>
-          <strong>Full Name:</strong> ${fullname}<br/>
-          <strong>Shipping Address:</strong> ${shipping_address}<br/>
-          <strong>Phone Number:</strong> ${phone}<br/>
-          <strong>Email:</strong> ${email}
-        </p>
-        <h4>Order Details:</h4>
-        <table style="border-collapse: collapse; width: 100%;">
-          <thead>
-            <tr>
-              <th style="padding:8px; border:1px solid #ddd;">Product</th>
-              <th style="padding:8px; border:1px solid #ddd;">Quantity</th>
-              <th style="padding:8px; border:1px solid #ddd; text-align:right;">Unit Price</th>
-              <th style="padding:8px; border:1px solid #ddd; text-align:right;">Total Price</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${itemsHtml}
-            <tr>
-              <td colspan="3" style="padding:8px; border:1px solid #ddd; font-weight:bold; text-align:right;">Total Amount</td>
-              <td style="padding:8px; border:1px solid #ddd; font-weight:bold; text-align:right;">${totalPrice.toLocaleString()} $</td>
-            </tr>
-          </tbody>
-        </table>
-        <p>We will contact you shortly to process your order.</p>
-        <p>Best regards,<br/>The Store Team</p>
-      `,
-    };
-
-    transporter.sendMail(mailOptions, (error, info) => {
-      if (error) {
-        console.error("Error sending mail:", error);
-        return res.status(201).json({ order_id: orderId, message: "Order created but email not sent." });
-      }
-      console.log("Email sent: " + info.response);
-      return res.status(201).json({ order_id: orderId, message: "Order created and email sent." });
-    });
-
-  } catch (err) {
-    console.error(err);
-    db.rollback(() => {});
-    return res.status(500).json({ message: err.message || "Checkout failed" });
-  }
-});
-
-// Lấy tất cả sản phẩm
-app.get("/products", async (req, res) => {
-  try {
-    const results = await query("SELECT * FROM products");
-    res.json(results);
-  } catch (err) {
     res.status(500).json({ error: "Server error" });
   }
 });
@@ -372,6 +250,7 @@ app.post("/products", async (req, res) => {
     const result = await query("INSERT INTO products (name, price, stock) VALUES (?, ?, ?)", [name, price, stock]);
     res.json({ message: "Thêm sản phẩm thành công", id: result.insertId });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "Server error" });
   }
 });
@@ -384,6 +263,7 @@ app.put("/products/:id", async (req, res) => {
     await query("UPDATE products SET name = ?, price = ?, stock = ? WHERE id = ?", [name, price, stock, id]);
     res.json({ message: "Cập nhật sản phẩm thành công" });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "Server error" });
   }
 });
@@ -395,17 +275,19 @@ app.delete("/products/:id", async (req, res) => {
     await query("DELETE FROM products WHERE id = ?", [id]);
     res.json({ message: "Xóa sản phẩm thành công" });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "Server error" });
   }
 });
 
-
 // =================== AUTH ===================
+
 // Đăng ký
 app.post("/register", async (req, res) => {
   const { name, email, phone, address, username, password } = req.body;
   if (!name || !email || !phone || !address || !username || !password)
     return res.status(400).json({ error: "Missing required fields" });
+
   try {
     const existing = await query("SELECT * FROM customers WHERE email = ? OR username = ?", [email, username]);
     if (existing.length) return res.status(400).json({ message: "Email hoặc username đã tồn tại" });
@@ -452,7 +334,104 @@ app.post("/login", async (req, res) => {
   }
 });
 
-// ================= API lấy danh sách đơn hàng =================
+// =================== CHECKOUT ===================
+
+app.post("/checkout", async (req, res) => {
+  let { fullname, shipping_address, phone, email, customer_id, order_items } = req.body;
+
+  if (!customer_id && req.session.user?.id) {
+    customer_id = req.session.user.id;
+  }
+
+  if (!fullname || !shipping_address || !phone || !email || !order_items?.length) {
+    return res.status(400).json({ message: "Missing required fields or empty order items" });
+  }
+
+  try {
+    await query("START TRANSACTION");
+
+    // Lưu checkout
+    await query(
+      "INSERT INTO checkout (fullname, shipping_address, phone, email, customer_id) VALUES (?, ?, ?, ?, ?)",
+      [fullname, shipping_address, phone, email, customer_id]
+    );
+
+    // Lưu order
+    const orderResult = await query(
+      "INSERT INTO orders (customer_id, customer_name, employee_id, order_date, status) VALUES (?, ?, NULL, NOW(), ?)",
+      [customer_id, fullname, 'pending']
+    );
+
+    const orderId = orderResult.insertId;
+
+    // Lưu order items
+    const itemsData = order_items.map(item => [orderId, item.product_id, item.name, item.quantity, item.price]);
+    await query("INSERT INTO order_items (order_id, product_id, name, quantity, price) VALUES ?", [itemsData]);
+
+    // Cập nhật stock
+    for (let item of order_items) {
+      const result = await query(
+        "UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?",
+        [item.quantity, item.product_id, item.quantity]
+      );
+      if (result.affectedRows === 0) throw new Error(`Insufficient stock for product ID ${item.product_id}`);
+    }
+
+    await query("COMMIT");
+
+    // Gửi email xác nhận
+    const totalPrice = order_items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    let itemsHtml = order_items.map(item =>
+      `<tr>
+        <td style="padding:8px; border:1px solid #ddd;">${item.name}</td>
+        <td style="padding:8px; border:1px solid #ddd; text-align:center;">${item.quantity}</td>
+        <td style="padding:8px; border:1px solid #ddd; text-align:right;">${item.price.toLocaleString()} $</td>
+        <td style="padding:8px; border:1px solid #ddd; text-align:right;">${(item.price*item.quantity).toLocaleString()} $</td>
+      </tr>`
+    ).join('');
+
+    const mailOptions = {
+      from: '"SPEAKER STORE" <dinhanhkiet510@gmail.com>',
+      to: email,
+      subject: `Order Confirmation #${orderId}`,
+      html: `
+        <h3>Hello ${fullname},</h3>
+        <p>Thank you for your order at our store. Below is your order information:</p>
+        <table style="border-collapse: collapse; width: 100%;">
+          <thead>
+            <tr>
+              <th style="padding:8px; border:1px solid #ddd;">Product</th>
+              <th style="padding:8px; border:1px solid #ddd;">Quantity</th>
+              <th style="padding:8px; border:1px solid #ddd; text-align:right;">Unit Price</th>
+              <th style="padding:8px; border:1px solid #ddd; text-align:right;">Total Price</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${itemsHtml}
+            <tr>
+              <td colspan="3" style="padding:8px; border:1px solid #ddd; font-weight:bold; text-align:right;">Total Amount</td>
+              <td style="padding:8px; border:1px solid #ddd; font-weight:bold; text-align:right;">${totalPrice.toLocaleString()} $</td>
+            </tr>
+          </tbody>
+        </table>
+        <p>We will contact you shortly to process your order.</p>
+        <p>Best regards,<br/>The Store Team</p>
+      `,
+    };
+
+    transporter.sendMail(mailOptions, (error, info) => {
+      if (error) return res.status(201).json({ order_id: orderId, message: "Order created but email not sent." });
+      res.status(201).json({ order_id: orderId, message: "Order created and email sent." });
+    });
+
+  } catch (err) {
+    console.error(err);
+    await query("ROLLBACK");
+    res.status(500).json({ message: err.message || "Checkout failed" });
+  }
+});
+
+// =================== API admin lấy toàn bộ đơn hàng ===================
 app.get("/orders", async (req, res) => {
   const sql = `
     SELECT 
@@ -474,7 +453,7 @@ app.get("/orders", async (req, res) => {
   `;
 
   try {
-    const results = await queryAsync(sql);
+    const results = await query(sql);
 
     const ordersMap = {};
     results.forEach(row => {
@@ -500,56 +479,58 @@ app.get("/orders", async (req, res) => {
 
     res.json(Object.values(ordersMap));
   } catch (err) {
-    console.error("❌ Lỗi lấy orders:", err);
-    res.status(500).json({ error: "Lỗi server" });
+    console.error("❌ Error fetching all orders:", err);
+    res.status(500).json({ error: "Server error" });
   }
 });
 
-// ================= API cập nhật trạng thái đơn hàng =================
+// =================== API admin cập nhật trạng thái đơn hàng ===================
 app.put("/orders/:id", async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
   if (!status) return res.status(400).json({ message: "Status is required" });
 
   try {
-    const result = await queryAsync("UPDATE orders SET status = ? WHERE id = ?", [status, id]);
+    const result = await query("UPDATE orders SET status = ? WHERE id = ?", [status, id]);
     if (result.affectedRows === 0) return res.status(404).json({ message: "Order not found" });
     res.json({ message: "Order status updated successfully" });
   } catch (err) {
-    console.error("Lỗi cập nhật đơn hàng:", err);
-    res.status(500).json({ error: "Lỗi server" });
+    console.error("❌ Error updating order status:", err);
+    res.status(500).json({ error: "Server error" });
   }
 });
 
-// ================= API cập nhật thông tin khách hàng =================
+// =================== API cập nhật thông tin khách hàng ===================
 app.put("/api/customers/me", async (req, res) => {
   const id = req.session.user?.id;
   if (!id) return res.status(401).json({ message: "Unauthorized" });
 
   const { name, phone, address, avatar } = req.body;
   try {
-    await queryAsync("UPDATE customers SET name = ?, phone = ?, address = ?, avatar = ? WHERE id = ?", [name, phone, address, avatar, id]);
+    await query("UPDATE customers SET name = ?, phone = ?, address = ?, avatar = ? WHERE id = ?", [name, phone, address, avatar, id]);
     res.json({ message: "Profile updated successfully" });
   } catch (err) {
+    console.error("❌ Error updating profile:", err);
     res.status(500).json({ message: "Server error" });
   }
 });
 
-// ================= API lấy thông tin khách hàng =================
+// =================== API lấy thông tin khách hàng ===================
 app.get("/api/customers/me", async (req, res) => {
   const id = req.session.user?.id;
   if (!id) return res.status(401).json({ message: "Unauthorized" });
 
   try {
-    const results = await queryAsync("SELECT id, name, email, phone, address, username, avatar, provider FROM customers WHERE id = ?", [id]);
-    if (results.length === 0) return res.status(404).json({ message: "Customer not found" });
+    const results = await query("SELECT id, name, email, phone, address, username, avatar, provider FROM customers WHERE id = ?", [id]);
+    if (!results.length) return res.status(404).json({ message: "Customer not found" });
     res.json(results[0]);
   } catch (err) {
+    console.error("❌ Error fetching profile:", err);
     res.status(500).json({ message: "Server error" });
   }
 });
 
-// ================= API cập nhật mật khẩu =================
+// =================== API cập nhật mật khẩu ===================
 app.put("/api/customers/me/password", async (req, res) => {
   const id = req.session.user?.id;
   if (!id) return res.status(401).json({ message: "Unauthorized" });
@@ -558,19 +539,20 @@ app.put("/api/customers/me/password", async (req, res) => {
   if (!oldPassword || !newPassword) return res.status(400).json({ message: "Missing password fields" });
 
   try {
-    const results = await queryAsync("SELECT password FROM customers WHERE id = ?", [id]);
-    if (results.length === 0) return res.status(404).json({ message: "Customer not found" });
+    const results = await query("SELECT password FROM customers WHERE id = ?", [id]);
+    if (!results.length) return res.status(404).json({ message: "Customer not found" });
     if (results[0].password !== oldPassword) return res.status(400).json({ message: "Old password incorrect" });
 
-    await queryAsync("UPDATE customers SET password = ? WHERE id = ?", [newPassword, id]);
+    await query("UPDATE customers SET password = ? WHERE id = ?", [newPassword, id]);
     res.json({ message: "Password updated successfully" });
   } catch (err) {
+    console.error("❌ Error updating password:", err);
     res.status(500).json({ message: "Server error" });
   }
 });
 
-// ================= API lấy đơn hàng của khách hàng =================
-app.get("/api/orders/my-orders/:id", async (req, res) => {
+// =================== API lấy đơn hàng của khách hàng ===================
+app.get("/api/orders/my-orders", async (req, res) => {
   const userId = req.session.user?.id;
   if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
@@ -594,7 +576,7 @@ app.get("/api/orders/my-orders/:id", async (req, res) => {
   `;
 
   try {
-    const results = await queryAsync(sql, [userId]);
+    const results = await query(sql, [userId]);
     const ordersMap = {};
     results.forEach(row => {
       if (!ordersMap[row.order_id]) {
@@ -616,8 +598,8 @@ app.get("/api/orders/my-orders/:id", async (req, res) => {
     });
     res.json(Object.values(ordersMap));
   } catch (err) {
-    console.error("Lỗi truy vấn:", err);
-    res.status(500).json({ error: "Lỗi server" });
+    console.error("❌ Error fetching orders:", err);
+    res.status(500).json({ error: "Server error" });
   }
 });
 
@@ -701,7 +683,7 @@ io.on("connection", (socket) => {
     const isAdminSender = socket.role === "admin";
 
     try {
-      const result = await queryAsync(
+      const result = await query(
         "INSERT INTO messages (sender_id, receiver_id, message, is_admin_sender) VALUES (?, ?, ?, ?)",
         [socket.userId, receiverId, message, isAdminSender]
       );
@@ -740,7 +722,7 @@ app.get("/messages/:customerId", async (req, res) => {
   if (!customerId) return res.status(400).json({ error: "Customer ID required" });
 
   try {
-    const rows = await queryAsync(
+    const rows = await query(
       `SELECT id, sender_id, receiver_id, message, is_admin_sender, created_at
        FROM messages
        WHERE sender_id = ? OR receiver_id = ?
@@ -771,7 +753,7 @@ app.get("/api/statistics", async (req, res) => {
   `;
 
   try {
-    const results = await queryAsync(sql);
+    const results = await query(sql);
     res.json(results);
   } catch (err) {
     console.error("❌ Error fetching statistics:", err);
@@ -796,7 +778,7 @@ app.get("/api/statistics/top-products", async (req, res) => {
   `;
 
   try {
-    const results = await queryAsync(sql);
+    const results = await query(sql);
     res.json(results);
   } catch (err) {
     console.error("❌ Error fetching top products:", err);
