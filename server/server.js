@@ -11,6 +11,7 @@ const nodemailer = require("nodemailer");
 const mysql = require("mysql2/promise");
 const http = require("http");
 const { Server } = require("socket.io");
+const util = require("util");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 const app = express();
@@ -74,6 +75,7 @@ async function query(sql, params=[]) {
     throw err;
   }
 }
+const queryAsync = util.promisify(db.query).bind(db);
 
 // Gemini AI
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
