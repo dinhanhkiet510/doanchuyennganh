@@ -355,68 +355,66 @@ app.post("/login", async (req, res) => {
 app.post("/checkout", async (req, res) => {
   let { fullname, shipping_address, phone, email, customer_id, order_items } = req.body;
 
-  if (!customer_id && req.session.user?.id) {
-    customer_id = req.session.user.id;
-  }
+  // Nếu customer_id undefined thì lấy từ session hoặc set null
+  customer_id = customer_id ?? req.session?.user?.id ?? null;
 
-  // Validate input
+  // Validate
   if (!fullname || !shipping_address || !phone || !email || !order_items?.length) {
     return res.status(400).json({ message: "Missing required fields or empty order items" });
   }
 
   try {
+    // START TRANSACTION
     await query("START TRANSACTION");
 
-    // --- Lưu checkout ---
+    // Lưu checkout
     await query(
       "INSERT INTO checkout (fullname, shipping_address, phone, email, customer_id) VALUES (?, ?, ?, ?, ?)",
-      [fullname ?? null, shipping_address ?? null, phone ?? null, email ?? null, customer_id ?? null]
+      [fullname, shipping_address, phone, email, customer_id]
     );
 
-    // --- Lưu order ---
+    // Lưu order
     const orderResult = await query(
       "INSERT INTO orders (customer_id, customer_name, employee_id, order_date, status) VALUES (?, ?, NULL, NOW(), ?)",
-      [customer_id ?? null, fullname ?? null, 'pending']
+      [customer_id, fullname, 'pending']
     );
     const orderId = orderResult.insertId;
 
-    // --- Lưu order items ---
+    // Lưu order items
     const itemsData = order_items.map(item => [
       orderId,
-      item.product_id ?? null,
-      item.name ?? null,
-      item.quantity ?? null,
-      item.price ?? null
+      item.product_id,
+      item.name,
+      item.quantity,
+      item.price
     ]);
-
-    // Tạo placeholders cho bulk insert
+    // Nếu dùng bulk insert thì cần chuẩn hóa: (?, ?, ?, ?, ?), (?, ?, ?, ?, ?), ...
     const placeholders = itemsData.map(() => "(?, ?, ?, ?, ?)").join(", ");
     const flatValues = itemsData.flat();
-
     await query(
       `INSERT INTO order_items (order_id, product_id, name, quantity, price) VALUES ${placeholders}`,
       flatValues
     );
 
-    // --- Cập nhật stock ---
+    // Cập nhật stock
     for (let item of order_items) {
       const result = await query(
         "UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?",
-        [item.quantity ?? 0, item.product_id ?? 0, item.quantity ?? 0]
+        [item.quantity, item.product_id, item.quantity]
       );
       if (result.affectedRows === 0) throw new Error(`Insufficient stock for product ID ${item.product_id}`);
     }
 
     await query("COMMIT");
 
-    // --- Gửi email xác nhận ---
-    const totalPrice = order_items.reduce((sum, item) => sum + (item.price ?? 0) * (item.quantity ?? 0), 0);
-    let itemsHtml = order_items.map(item =>
+    // Gửi email xác nhận (bỏ qua lỗi email không làm rollback)
+    const totalPrice = order_items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const itemsHtml = order_items.map(item =>
       `<tr>
         <td style="padding:8px; border:1px solid #ddd;">${item.name}</td>
         <td style="padding:8px; border:1px solid #ddd; text-align:center;">${item.quantity}</td>
-        <td style="padding:8px; border:1px solid #ddd; text-align:right;">${(item.price ?? 0).toLocaleString()} $</td>
-        <td style="padding:8px; border:1px solid #ddd; text-align:right;">${((item.price ?? 0)*(item.quantity ?? 0)).toLocaleString()} $</td>
+        <td style="padding:8px; border:1px solid #ddd; text-align:right;">${item.price.toLocaleString()} $</td>
+        <td style="padding:8px; border:1px solid #ddd; text-align:right;">${(item.price*item.quantity).toLocaleString()} $</td>
       </tr>`).join('');
 
     const mailOptions = {
@@ -449,12 +447,10 @@ app.post("/checkout", async (req, res) => {
     };
 
     transporter.sendMail(mailOptions, (error, info) => {
-      if (error) {
-        console.error("Email error:", error);
-        return res.status(201).json({ order_id: orderId, message: "Order created but email not sent." });
-      }
-      res.status(201).json({ order_id: orderId, message: "Order created and email sent." });
+      if (error) console.error("Email not sent:", error);
     });
+
+    res.status(201).json({ order_id: orderId, message: "Order created successfully" });
 
   } catch (err) {
     console.error("❌ Checkout error:", err);
@@ -462,6 +458,7 @@ app.post("/checkout", async (req, res) => {
     res.status(500).json({ message: err.message || "Checkout failed" });
   }
 });
+
 
 // =================== CONTACT ===================
 app.post("api/contact", (req, res) => {
