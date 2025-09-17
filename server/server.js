@@ -356,75 +356,55 @@ app.post("/login", async (req, res) => {
 app.post("/checkout", async (req, res) => {
   let { fullname, shipping_address, phone, email, customer_id, order_items } = req.body;
 
-  // Nếu user đã login, lấy customer_id từ session
-  if (!customer_id && req.session.user?.id) {
-    customer_id = req.session.user.id;
-  }
+  if (!customer_id && req.session.user?.id) customer_id = req.session.user.id;
 
-  // Validate input
   if (!fullname || !shipping_address || !phone || !email || !order_items?.length) {
     return res.status(400).json({ message: "Missing required fields or empty order items" });
   }
 
   try {
-    await query("START TRANSACTION");
+    await query("BEGIN");
 
-     // Lưu checkout
+    // Lưu checkout
     await query(
       "INSERT INTO checkout (fullname, shipping_address, phone, email, customer_id) VALUES (?, ?, ?, ?, ?)",
-      [
-        fullname ?? "",
-        shipping_address ?? "",
-        phone ?? "",
-        email ?? "",
-        customer_id ?? null
-      ]
+      [fullname, shipping_address, phone, email, customer_id || null]
     );
 
     // Lưu order
     const orderResult = await query(
       "INSERT INTO orders (customer_id, customer_name, employee_id, order_date, status) VALUES (?, ?, NULL, NOW(), ?)",
-      [customer_id ?? null, fullname ?? "", 'pending']
+      [customer_id || null, fullname, 'pending']
     );
     const orderId = orderResult.insertId;
 
-    // Lưu order items (bulk insert)
-    const itemsData = order_items.map(item => [
-      orderId,
-      item.product_id ?? null,
-      item.name ?? "",
-      item.quantity ?? 0,
-      item.price ?? 0
-    ]);
-
-    const valuesStr = itemsData
-      .map(row => `(${row.map(v => typeof v === "string" ? `'${v.replace(/'/g, "\\'")}'` : v).join(",")})`)
-      .join(",");
-
-    await queryRaw(`INSERT INTO order_items (order_id, product_id, name, quantity, price) VALUES ${valuesStr}`);
+    // Lưu order items
+    const itemsData = order_items.map(item => [orderId, item.product_id, item.name, item.quantity, item.price]);
+    await query(
+      "INSERT INTO order_items (order_id, product_id, name, quantity, price) VALUES ?",
+      [itemsData]
+    );
 
     // Cập nhật stock
     for (let item of order_items) {
       const result = await query(
         "UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?",
-        [item.quantity ?? 0, item.product_id ?? 0, item.quantity ?? 0]
+        [item.quantity, item.product_id, item.quantity]
       );
-      if (result.affectedRows === 0)
-        throw new Error(`Insufficient stock for product ID ${item.product_id}`);
+      if (result.affectedRows === 0) throw new Error(`Insufficient stock for product ID ${item.product_id}`);
     }
 
     await query("COMMIT");
 
-    // Gửi email xác nhận
-    const totalPrice = order_items.reduce((sum, item) => sum + (item.price ?? 0) * (item.quantity ?? 0), 0);
-    let itemsHtml = order_items.map(item =>
-      `<tr>
-        <td style="padding:8px; border:1px solid #ddd;">${item.name ?? ""}</td>
-        <td style="padding:8px; border:1px solid #ddd; text-align:center;">${item.quantity ?? 0}</td>
-        <td style="padding:8px; border:1px solid #ddd; text-align:right;">${(item.price ?? 0).toLocaleString()} $</td>
-        <td style="padding:8px; border:1px solid #ddd; text-align:right;">${((item.price ?? 0)*(item.quantity ?? 0)).toLocaleString()} $</td>
-      </tr>`
-    ).join('');
+    // Gửi email
+    const totalPrice = order_items.reduce((sum, i) => sum + i.price * i.quantity, 0);
+    const itemsHtml = order_items.map(i => `
+      <tr>
+        <td style="padding:8px; border:1px solid #ddd;">${i.name}</td>
+        <td style="padding:8px; border:1px solid #ddd; text-align:center;">${i.quantity}</td>
+        <td style="padding:8px; border:1px solid #ddd; text-align:right;">${i.price.toLocaleString()} $</td>
+        <td style="padding:8px; border:1px solid #ddd; text-align:right;">${(i.price * i.quantity).toLocaleString()} $</td>
+      </tr>`).join('');
 
     const mailOptions = {
       from: '"SPEAKER STORE" <dinhanhkiet510@gmail.com>',

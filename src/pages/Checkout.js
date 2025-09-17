@@ -74,7 +74,7 @@ function Checkout() {
 
       if (res.ok) {
         setStatusMessage(
-          `✅ Order placed successfully! Order ID: ${data.order_id}`
+          `Order placed successfully! Order ID: ${data.order_id}`
         );
         clearCart();
         setFormData({
