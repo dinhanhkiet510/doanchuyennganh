@@ -67,25 +67,25 @@ function Checkout() {
       const res = await fetch(`${process.env.REACT_APP_API_URL}/checkout`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include", // quan trọng nếu backend dùng session/cookie
         body: JSON.stringify(dataToSend),
       });
 
-      const data = await res.json();
-
-      if (res.ok) {
-        setStatusMessage(
-          `Order placed successfully! Order ID: ${data.order_id}`
-        );
-        clearCart();
-        setFormData({
-          fullname: "",
-          shipping_address: "",
-          phone: "",
-          email: "",
-        });
-      } else {
-        setStatusMessage(`❌ Failed: ${data.message || "Unknown error"}`);
+      if (!res.ok) {
+        // thử đọc message từ response JSON
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.message || "Unknown error");
       }
+
+      const data = await res.json();
+      setStatusMessage(`✅ Order placed successfully! Order ID: ${data.order_id}`);
+      clearCart();
+      setFormData({
+        fullname: "",
+        shipping_address: "",
+        phone: "",
+        email: "",
+      });
     } catch (error) {
       setStatusMessage(`❌ Error: ${error.message}`);
     } finally {
@@ -93,6 +93,7 @@ function Checkout() {
       setTimeout(() => setStatusMessage(""), 5000);
     }
   };
+
 
   return (
     <div className="checkout-page">
