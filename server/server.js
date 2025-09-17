@@ -321,14 +321,14 @@ app.post("/login", async (req, res) => {
   try {
     const admin = await query("SELECT * FROM admin WHERE username = ? AND password_hash = ?", [username, password]);
     if (admin.length) {
-      req.session.user = { id: admin[0].id, name: admin[0].name || admin[0].username, role: "admin" };
+      req.session.user = { id: admin[0].admin_id, name: admin[0].name || admin[0].username, role: "admin" };
       return res.json({ role: "admin", user: req.session.user });
     }
 
     const customer = await query("SELECT * FROM customers WHERE username = ? AND password = ?", [username, password]);
     if (customer.length) {
       req.session.user = {
-        id: customer[0].admin_id,
+        id: customer[0].id,
         name: customer[0].name,
         email: customer[0].email,
         username: customer[0].username,
