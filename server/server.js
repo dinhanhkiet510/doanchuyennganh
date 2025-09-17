@@ -751,7 +751,7 @@ io.on("connection", (socket) => {
         id: result.insertId,
         senderId: socket.userId,
         receiverId,
-        senderRole: isAdminSender ? "admin" : "customer",
+        senderRole: isAdminSender ? "admin" : "user",
         message,
         created_at: new Date(),
       };
@@ -760,7 +760,7 @@ io.on("connection", (socket) => {
       const receiverSocketId = onlineUsers.get(receiverId);
       if (receiverSocketId)
         io.to(receiverSocketId).emit("receiveMessage", payload);
-
+      
       // Gửi lại cho người gửi
       socket.emit("receiveMessage", payload);
     } catch (err) {
