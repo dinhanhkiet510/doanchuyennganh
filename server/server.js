@@ -353,60 +353,52 @@ app.post("/login", async (req, res) => {
 
 // =================== CHECKOUT ===================
 app.post("/checkout", async (req, res) => {
+  let { fullname, shipping_address, phone, email, customer_id, order_items } = req.body;
+
+  if (!customer_id && req.session.user?.id) {
+    customer_id = req.session.user.id;
+  }
+
+  // Validate input
+  if (!fullname || !shipping_address || !phone || !email || !order_items?.length) {
+    return res.status(400).json({ message: "Missing required fields or empty order items" });
+  }
+
   try {
-    let { fullname, shipping_address, phone, email, customer_id, order_items } = req.body;
-
-    // Nếu user login nhưng chưa gửi customer_id
-    if (!customer_id && req.session.user?.id) {
-      customer_id = req.session.user.id;
-    }
-
-    // Validate cơ bản
-    if (!fullname || !shipping_address || !phone || !email || !Array.isArray(order_items) || order_items.length === 0) {
-      return res.status(400).json({ message: "Missing required fields or empty order items" });
-    }
-
-    // Convert undefined -> null hoặc giá trị mặc định
-    customer_id = customer_id ?? null;
-    fullname = fullname ?? "";
-    shipping_address = shipping_address ?? "";
-    phone = phone ?? "";
-    email = email ?? "";
-
-    // Bắt đầu transaction
     await query("START TRANSACTION");
 
-    // Insert checkout
+    // --- Lưu checkout ---
     await query(
       "INSERT INTO checkout (fullname, shipping_address, phone, email, customer_id) VALUES (?, ?, ?, ?, ?)",
-      [fullname, shipping_address, phone, email, customer_id ?? null]
+      [fullname ?? null, shipping_address ?? null, phone ?? null, email ?? null, customer_id ?? null]
     );
 
-    // Insert order
+    // --- Lưu order ---
     const orderResult = await query(
       "INSERT INTO orders (customer_id, customer_name, employee_id, order_date, status) VALUES (?, ?, NULL, NOW(), ?)",
-      [customer_id, fullname, 'pending']
+      [customer_id ?? null, fullname ?? null, 'pending']
     );
     const orderId = orderResult.insertId;
 
-    // Chuẩn hóa order items
+    // --- Lưu order items ---
     const itemsData = order_items.map(item => [
       orderId,
       item.product_id ?? null,
-      item.name ?? "",
-      item.quantity ?? 0,
-      item.price ?? 0
+      item.name ?? null,
+      item.quantity ?? null,
+      item.price ?? null
     ]);
 
-    // Insert order_items (sử dụng multiple values)
-    const placeholders = itemsData.map(() => "(?, ?, ?, ?, ?)").join(",");
-    const flattenedParams = itemsData.flat();
+    // Tạo placeholders cho bulk insert
+    const placeholders = itemsData.map(() => "(?, ?, ?, ?, ?)").join(", ");
+    const flatValues = itemsData.flat();
+
     await query(
       `INSERT INTO order_items (order_id, product_id, name, quantity, price) VALUES ${placeholders}`,
-      flattenedParams
+      flatValues
     );
 
-    // Cập nhật stock
+    // --- Cập nhật stock ---
     for (let item of order_items) {
       const result = await query(
         "UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?",
@@ -415,19 +407,17 @@ app.post("/checkout", async (req, res) => {
       if (result.affectedRows === 0) throw new Error(`Insufficient stock for product ID ${item.product_id}`);
     }
 
-    // Commit transaction
     await query("COMMIT");
 
-    // Tính tổng tiền và chuẩn bị email
+    // --- Gửi email xác nhận ---
     const totalPrice = order_items.reduce((sum, item) => sum + (item.price ?? 0) * (item.quantity ?? 0), 0);
-    const itemsHtml = order_items.map(item => `
-      <tr>
-        <td style="padding:8px; border:1px solid #ddd;">${item.name ?? ""}</td>
-        <td style="padding:8px; border:1px solid #ddd; text-align:center;">${item.quantity ?? 0}</td>
+    let itemsHtml = order_items.map(item =>
+      `<tr>
+        <td style="padding:8px; border:1px solid #ddd;">${item.name}</td>
+        <td style="padding:8px; border:1px solid #ddd; text-align:center;">${item.quantity}</td>
         <td style="padding:8px; border:1px solid #ddd; text-align:right;">${(item.price ?? 0).toLocaleString()} $</td>
         <td style="padding:8px; border:1px solid #ddd; text-align:right;">${((item.price ?? 0)*(item.quantity ?? 0)).toLocaleString()} $</td>
-      </tr>
-    `).join("");
+      </tr>`).join('');
 
     const mailOptions = {
       from: '"SPEAKER STORE" <dinhanhkiet510@gmail.com>',
@@ -459,17 +449,19 @@ app.post("/checkout", async (req, res) => {
     };
 
     transporter.sendMail(mailOptions, (error, info) => {
-      if (error) return res.status(201).json({ order_id: orderId, message: "Order created but email not sent." });
+      if (error) {
+        console.error("Email error:", error);
+        return res.status(201).json({ order_id: orderId, message: "Order created but email not sent." });
+      }
       res.status(201).json({ order_id: orderId, message: "Order created and email sent." });
     });
 
   } catch (err) {
     console.error("❌ Checkout error:", err);
-    try { await query("ROLLBACK"); } catch(e){ console.error("Rollback failed:", e); }
+    await query("ROLLBACK");
     res.status(500).json({ message: err.message || "Checkout failed" });
   }
 });
-
 
 // =================== CONTACT ===================
 app.post("api/contact", (req, res) => {
