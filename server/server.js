@@ -40,6 +40,8 @@ async function initDB() {
   console.log("✅ MySQL connected");
 }
 
+initDB();
+
 // Helper query
 async function query(sql, params=[]) {
   if (!db) throw new Error("DB not connected");
