@@ -500,6 +500,17 @@ app.put("/orders/:id", async (req, res) => {
   }
 });
 
+// Lấy tất cả khách hàng
+app.get("/customers", async (req, res) => {
+  try {
+    const customers = await query("SELECT id, name, email, phone, address, username FROM customers");
+    res.json(customers);
+  } catch (err) {
+    console.error("❌ Error fetching customers:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 // =================== API cập nhật thông tin khách hàng ===================
 app.put("/api/customers/me", async (req, res) => {
   const id = req.session.user?.id;
