@@ -552,7 +552,7 @@ app.put("/api/customers/me/password", async (req, res) => {
 });
 
 // =================== API lấy đơn hàng của khách hàng ===================
-app.get("/api/orders/my-orders", async (req, res) => {
+app.get("/api/orders/my-orders/:id", async (req, res) => {
   const userId = req.session.user?.id;
   if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
