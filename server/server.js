@@ -40,8 +40,6 @@ async function initDB() {
   console.log("✅ MySQL connected");
 }
 
-initDB();
-
 // Helper query
 async function query(sql, params=[]) {
   if (!db) throw new Error("DB not connected");
@@ -789,7 +787,16 @@ app.get("/api/statistics/top-products", async (req, res) => {
 });
 
 // Khởi động server
-const PORT = process.env.PORT || 5000;
-server.listen(PORT, "0.0.0.0", () => {
-  console.log(`Server đang chạy tại cổng ${PORT}`);
-});
+async function startServer() {
+  try {
+    await initDB(); // DB phải connect trước khi nhận request
+    const PORT = process.env.PORT || 5000;
+    server.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server đang chạy tại cổng ${PORT}`);
+    });
+  } catch(err) {
+    console.error("❌ Failed to start server:", err);
+  }
+}
+
+startServer(); 
