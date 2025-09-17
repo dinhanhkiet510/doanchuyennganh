@@ -1,25 +1,21 @@
 require("dotenv").config();
-const passport = require('passport');
-const express = require('express');
-const bodyParser = require('body-parser');
-const cors = require('cors');
-const nodemailer = require("nodemailer");
+const express = require("express");
+const bodyParser = require("body-parser");
+const cors = require("cors");
+const session = require("express-session");
+const MySQLStore = require("express-mysql-session")(session);
+const passport = require("passport");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const FacebookStrategy = require("passport-facebook").Strategy;
-const session = require('express-session');
-const MySQLStore = require('express-mysql-session')(session);
+const nodemailer = require("nodemailer");
 const mysql = require("mysql2/promise");
 const http = require("http");
 const { Server } = require("socket.io");
-// Thêm thư viện Gemini
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
-// Middleware
 const app = express();
-app.set('trust proxy', 1);
-
+app.set("trust proxy", 1);
 app.use(bodyParser.json());
-
 app.use(cors({
   origin: 'https://doanchuyennganh.vercel.app',
   credentials: true,
@@ -27,7 +23,21 @@ app.use(cors({
   methods: ['GET','POST','PUT','DELETE','OPTIONS']
 }));
 
-// MySQL session store
+// MySQL connection & session store
+let db;
+async function initDB() {
+  db = await mysql.createConnection({
+    host: process.env.MYSQLHOST,
+    user: process.env.MYSQLUSER,
+    password: process.env.MYSQLPASSWORD,
+    database: process.env.MYSQLDATABASE,
+    port: process.env.MYSQLPORT || 3306,
+    ssl: { rejectUnauthorized: false }
+  });
+  console.log("✅ MySQL connected");
+}
+initDB();
+
 const sessionStore = new MySQLStore({
   host: process.env.MYSQLHOST,
   port: process.env.MYSQLPORT || 3306,
@@ -39,149 +49,112 @@ const sessionStore = new MySQLStore({
   expiration: 86400000
 });
 
-// Express session
 app.use(session({
   key: "session_cookie_name",
   secret: process.env.SESSION_SECRET || "secretKey",
   store: sessionStore,
   resave: false,
-  saveUninitialized: false,  // chỉ lưu session khi có dữ liệu
+  saveUninitialized: false,
   cookie: {
     httpOnly: true,
-    secure: true,          // bắt buộc HTTPS → đúng với Vercel + Render
-    sameSite: "none",      // cross-site cookie
+    secure: true,
+    sameSite: "none",
     maxAge: 24*60*60*1000
   }
 }));
 
-
 app.use(passport.initialize());
 app.use(passport.session());
 
-let db;
-// Kết nối MySQL
-async function main() {
-   db = await mysql.createConnection({
-    host: process.env.MYSQLHOST,
-    user: process.env.MYSQLUSER,
-    password: process.env.MYSQLPASSWORD,
-    database: process.env.MYSQLDATABASE,
-    port: process.env.MYSQLPORT,
-    ssl: { rejectUnauthorized: false }
-  });
-
-  console.log("MySQL connected");
+// Helper query
+async function query(sql, params=[]) {
+  try {
+    const [rows] = await db.execute(sql, params);
+    return rows;
+  } catch(err) {
+    throw err;
+  }
 }
 
-main();
-
-// Hàm helper để query MySQL với promise
-function queryAsync(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    db.query(sql, params, (err, results) => {
-      if (err) return reject(err);
-      resolve(results);
-    });
-  });
-}
-
-// Khởi tạo Gemini
+// Gemini AI
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-// --- Serialize / Deserialize ---
-passport.serializeUser((user, done) => done(null, user.id)); // chỉ lưu id
-passport.deserializeUser(async (id, done) => {
-  try {
-    const results = await query("SELECT id, name, email, provider FROM customers WHERE id = ?", [id]);
-    done(null, results[0]);
-  } catch (err) {
-    done(err, null);
+async function callGeminiWithRetry(prompt, retries = 3, delay = 2000) {
+  for(let i=0;i<retries;i++){
+    try {
+      const result = await model.generateContent({ contents:[{role:"user", parts:[{text:prompt}]}] });
+      return result.response.text();
+    } catch(err) {
+      if(err.status===503 && i<retries-1) await new Promise(r=>setTimeout(r, delay));
+      else throw err;
+    }
   }
+}
+
+// Passport serialize/deserialize
+passport.serializeUser((user, done)=> done(null, user.id));
+passport.deserializeUser(async (id, done)=>{
+  try{
+    const results = await query("SELECT id, name, email, provider FROM customers WHERE id=?", [id]);
+    done(null, results[0]);
+  } catch(err){ done(err,null); }
 });
 
-/**
- * GOOGLE LOGIN
- */
+// Google OAuth
 passport.use(new GoogleStrategy({
   clientID: process.env.GOOGLE_CLIENT_ID,
   clientSecret: process.env.GOOGLE_CLIENT_SECRET,
   callbackURL: `${process.env.CALLBACK_URL}/google/callback`
-}, async (accessToken, refreshToken, profile, done) => {
-  try {
+}, async (accessToken, refreshToken, profile, done)=>{
+  try{
     const email = profile.emails[0].value;
-
-    let existing = await query("SELECT * FROM customers WHERE email = ?", [email]);
-
+    const existing = await query("SELECT * FROM customers WHERE email=?", [email]);
     let userId;
-    if (existing.length > 0) {
-      await query("UPDATE customers SET provider='google', provider_id=? WHERE email=?", [profile.id, email]);
+    if(existing.length>0){
+      await query("UPDATE customers SET provider='google', provider_id=? WHERE email=?", [profile.id,email]);
       userId = existing[0].id;
     } else {
-      const insertResult = await query(
-        "INSERT INTO customers (name, email, provider, provider_id) VALUES (?, ?, 'google', ?)",
-        [profile.displayName, email, profile.id]
-      );
-      userId = insertResult.insertId;
+      const result = await query("INSERT INTO customers (name,email,provider,provider_id) VALUES (?,?, 'google', ?)", [profile.displayName,email,profile.id]);
+      userId = result.insertId;
     }
-
-    done(null, { id: userId, name: profile.displayName, email, provider: 'google' });
-  } catch (err) {
-    done(err, null);
-  }
+    done(null, {id:userId, name:profile.displayName, email, provider:'google'});
+  } catch(err){ done(err,null); }
 }));
 
-/**
- * FACEBOOK LOGIN
- */
+// Facebook OAuth
 passport.use(new FacebookStrategy({
   clientID: process.env.FACEBOOK_APP_ID,
   clientSecret: process.env.FACEBOOK_APP_SECRET,
   callbackURL: `${process.env.CALLBACK_URL}/facebook/callback`,
-  profileFields: ['id', 'displayName', 'emails']
-}, async (accessToken, refreshToken, profile, done) => {
-  try {
-    const email = profile.emails ? profile.emails[0].value : `fb_${profile.id}@noemail.com`;
-
-    let existing = await query("SELECT * FROM customers WHERE email = ?", [email]);
-
+  profileFields:['id','displayName','emails']
+}, async (accessToken, refreshToken, profile, done)=>{
+  try{
+    const email = profile.emails?.[0]?.value || `fb_${profile.id}@noemail.com`;
+    const existing = await query("SELECT * FROM customers WHERE email=?", [email]);
     let userId;
-    if (existing.length > 0) {
-      await query("UPDATE customers SET provider='facebook', provider_id=? WHERE email=?", [profile.id, email]);
+    if(existing.length>0){
+      await query("UPDATE customers SET provider='facebook', provider_id=? WHERE email=?", [profile.id,email]);
       userId = existing[0].id;
     } else {
-      const insertResult = await query(
-        "INSERT INTO customers (name, email, provider, provider_id) VALUES (?, ?, 'facebook', ?)",
-        [profile.displayName, email, profile.id]
-      );
-      userId = insertResult.insertId;
+      const result = await query("INSERT INTO customers (name,email,provider,provider_id) VALUES (?,?, 'facebook', ?)", [profile.displayName,email,profile.id]);
+      userId = result.insertId;
     }
-
-    done(null, { id: userId, name: profile.displayName, email, provider: 'facebook' });
-  } catch (err) {
-    done(err, null);
-  }
+    done(null, {id:userId,name:profile.displayName,email,provider:'facebook'});
+  } catch(err){ done(err,null); }
 }));
 
-// --- OAuth routes ---
-app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
-app.get('/auth/google/callback',
-  passport.authenticate('google', { failureRedirect: '/' }),
-  (req, res) => {
-    // Lưu user vào session
-    req.session.user = req.user; // req.user = { id, name, email, provider }
-    res.redirect('http://localhost:3000');
-  }
-);
+// OAuth routes
+app.get('/auth/google', passport.authenticate('google',{scope:['profile','email']}));
+app.get('/auth/google/callback', passport.authenticate('google',{failureRedirect:'/'}), (req,res)=>{
+  req.session.user = req.user;
+  res.redirect('http://localhost:3000');
+});
 
-app.get('/auth/facebook', passport.authenticate('facebook', { scope: ['email'] }));
-app.get('/auth/facebook/callback',
-  passport.authenticate('facebook', { failureRedirect: '/' }),
-  (req, res) => {
-    req.session.user = req.user;
-    res.redirect('http://localhost:3000');
-  }
-);
+app.get('/auth/facebook', passport.authenticate('facebook',{scope:['email']}));
+app.get('/auth/facebook/callback', passport.authenticate('facebook',{failureRedirect:'/'}), (req,res)=>{
+  req.session.user = req.user;
+  res.redirect('http://localhost:3000');
+});
 
 // --- API trả về user cho React ---
 app.get("/api/current_user", (req, res) => {
