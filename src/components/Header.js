@@ -54,9 +54,9 @@ function Header() {
           onMouseEnter={() => window.innerWidth > 768 && setDropdownOpen(true)}
           onMouseLeave={() => window.innerWidth > 768 && setDropdownOpen(false)}
         >
-          <div className="dropdown-toggle" onClick={() => setDropdownOpen(!dropdownOpen)}>
+          <Link className="dropdown-toggle" onClick={() => setDropdownOpen(!dropdownOpen)}>
             PRODUCT
-          </div>
+          </Link>
 
           <ul className="dropdown-menu">
             <li><Link to="/products/category/2" onClick={handleLinkClick}>SPEAKER</Link></li>
