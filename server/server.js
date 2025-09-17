@@ -53,6 +53,8 @@ app.use(session({
 
 // =================== DATABASE ===================
 let db;
+let queryAsync;
+
 async function initDB() {
   db = await mysql.createConnection({
     host: process.env.MYSQLHOST,
@@ -62,7 +64,7 @@ async function initDB() {
     port: process.env.MYSQLPORT || 3306,
     ssl: { rejectUnauthorized: false }
   });
-  const queryAsync = util.promisify(db.query).bind(db);
+  queryAsync = util.promisify(db.query).bind(db);
   console.log("MySQL connected");
 }
 initDB();
