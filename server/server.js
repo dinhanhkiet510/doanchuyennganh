@@ -751,7 +751,7 @@ io.on("connection", (socket) => {
         id: result.insertId,
         senderId: socket.userId,
         receiverId,
-        senderRole: isAdminSender ? "admin" : "user",
+        senderRole: isAdminSender ? "admin" : "customer",
         message,
         created_at: new Date(),
       };

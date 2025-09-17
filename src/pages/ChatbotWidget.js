@@ -186,7 +186,7 @@
                     style={{
                       display: "inline-block",
                       backgroundColor:
-                        m.role === "user"
+                        m.role === "customer"
                           ? "#0d6efd"
                           : m.role === "admin"
                           ? "#198754"
