@@ -161,7 +161,7 @@ app.get("/api/current_user", async (req, res) => {
     const results = await query("SELECT id, name, email, phone, address, username, avatar, provider FROM customers WHERE id = ? LIMIT 1", [id]);
     res.status(200).json({ user: results[0] || null });
   } catch (err) {
-    console.error("❌ Error fetching current user:", err);
+    console.error("Error fetching current user:", err);
     res.status(500).json({ user: null });
   }
 });
@@ -806,7 +806,7 @@ async function startServer() {
       console.log(`Server đang chạy tại cổng ${PORT}`);
     });
   } catch(err) {
-    console.error("❌ Failed to start server:", err);
+    console.error("Failed to start server:", err);
   }
 }
 

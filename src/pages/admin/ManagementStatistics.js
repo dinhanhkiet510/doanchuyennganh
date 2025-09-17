@@ -40,12 +40,12 @@ export default function ManagementStatistics() {
     axios
       .get(`${process.env.REACT_APP_API_URL}/api/statistics/top-products`)
       .then((res) => setTopProducts(res.data || []))
-      .catch((err) => console.error("❌ Lỗi lấy top products:", err));
+      .catch((err) => console.error("Lỗi lấy top products:", err));
   }, []);
 
   // Tổng doanh thu
   const totalRevenueAll = orderStats.reduce(
-    (sum, item) => sum + (item.totalRevenue || 0),
+    (sum, item) => sum + Number(item.totalRevenue || 0),
     0
   );
 
