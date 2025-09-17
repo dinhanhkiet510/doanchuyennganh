@@ -15,6 +15,8 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 const app = express();
 app.set("trust proxy", 1);
+
+// =================== MIDDLEWARE ===================
 app.use(bodyParser.json());
 app.use(cors({
   origin: 'https://doanchuyennganh.vercel.app',
@@ -22,22 +24,6 @@ app.use(cors({
   allowedHeaders: ['Content-Type'],
   methods: ['GET','POST','PUT','DELETE','OPTIONS']
 }));
-
-// MySQL connection & session store
-let db;
-async function initDB() {
-  db = await mysql.createConnection({
-    host: process.env.MYSQLHOST,
-    user: process.env.MYSQLUSER,
-    password: process.env.MYSQLPASSWORD,
-    database: process.env.MYSQLDATABASE,
-    port: process.env.MYSQLPORT || 3306,
-    ssl: { rejectUnauthorized: false }
-  });
-  console.log("MySQL connected");
-}
-initDB();
-
 const sessionStore = new MySQLStore({
   host: process.env.MYSQLHOST,
   port: process.env.MYSQLPORT || 3306,
@@ -63,8 +49,21 @@ app.use(session({
   }
 }));
 
-app.use(passport.initialize());
-app.use(passport.session());
+
+// =================== DATABASE ===================
+let db;
+async function initDB() {
+  db = await mysql.createConnection({
+    host: process.env.MYSQLHOST,
+    user: process.env.MYSQLUSER,
+    password: process.env.MYSQLPASSWORD,
+    database: process.env.MYSQLDATABASE,
+    port: process.env.MYSQLPORT || 3306,
+    ssl: { rejectUnauthorized: false }
+  });
+  console.log("MySQL connected");
+}
+initDB();
 
 // Helper query
 async function query(sql, params=[]) {
@@ -90,6 +89,9 @@ async function callGeminiWithRetry(prompt, retries = 3, delay = 2000) {
     }
   }
 }
+
+app.use(passport.initialize());
+app.use(passport.session());
 
 // Passport serialize/deserialize
 passport.serializeUser((user, done)=> done(null, user.id));
@@ -184,79 +186,55 @@ app.post("/api/logout", (req, res) => {
   res.sendStatus(200);
 });
 
-// API: Lấy sản phẩm theo category_id,sắp xếp theo param sort
-app.get('/products/category/:categoryId', (req, res) => {
+// =================== PRODUCTS ===================
+// Lấy sản phẩm theo category_id & sort
+app.get('/products/category/:categoryId', async (req, res) => {
   const categoryId = req.params.categoryId;
-  const sort = req.query.sort || '';  // Lấy tham số sort từ query string
-
-  let orderByClause = '';
+  const sort = req.query.sort || '';
+  let orderBy = '';
   switch(sort) {
-    case 'price-asc':
-      orderByClause = 'ORDER BY price ASC';
-      break;
-    case 'price-desc':
-      orderByClause = 'ORDER BY price DESC';
-      break;
-    case 'name-asc':
-      orderByClause = 'ORDER BY name ASC';
-      break;
-    case 'name-desc':
-      orderByClause = 'ORDER BY name DESC';
-      break;
-    default:
-      orderByClause = ''; // không sắp xếp nếu không truyền hoặc truyền sai
+    case 'price-asc': orderBy = 'ORDER BY price ASC'; break;
+    case 'price-desc': orderBy = 'ORDER BY price DESC'; break;
+    case 'name-asc': orderBy = 'ORDER BY name ASC'; break;
+    case 'name-desc': orderBy = 'ORDER BY name DESC'; break;
   }
-
-  const query = `SELECT * FROM products WHERE category_id = ? ${orderByClause}`;
-
-  db.query(query, [categoryId], (err, results) => {
-    if (err) {
-      console.error("Lỗi truy vấn:", err);
-      return res.status(500).json({ error: "Lỗi server" });
-    }
+  try {
+    const results = await query(`SELECT * FROM products WHERE category_id = ? ${orderBy}`, [categoryId]);
     res.json(results);
-  });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
 });
 
-// API tìm kiếm 
-app.get('/api/products/search', (req, res) => {
-    const q = req.query.q || "";
-    const sql = `
-        SELECT id, name, img
-        FROM products
-        WHERE name LIKE ?
-        LIMIT 3
-    `;
-    db.query(sql, [`%${q}%`], (err, results) => {
-        if (err) return res.status(500).json({ error: err });
-
-        // Thêm đường dẫn đầy đủ cho ảnh
-        const data = results.map(p => ({
-            ...p,
-            image: `http://localhost:5000/uploads/${p.img}`
-        }));
-
-        res.json(data);
-    });
+// Tìm kiếm sản phẩm
+app.get('/api/products/search', async (req, res) => {
+  const q = req.query.q || "";
+  try {
+    const results = await query(`
+      SELECT id, name, img FROM products
+      WHERE name LIKE ?
+      LIMIT 3
+    `, [`%${q}%`]);
+    res.json(results.map(p => ({ ...p, image: `${process.env.REACT_APP_API_URL}/uploads/${p.img}` })));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
 });
 
-//API lấy sản phẩm theo id product ( details )
-app.get('/api/products/:id', (req, res) => {
-    const productId = req.params.id;
-
-    // Ví dụ: query từ DB
-    const sql = 'SELECT * FROM products WHERE id = ?';
-    db.query(sql, [productId], (err, result) => {
-        if (err) {
-            console.error(err);
-            return res.status(500).json({ error: 'Database error' });
-        }
-        if (result.length === 0) {
-            return res.status(404).json({ error: 'Product not found' });
-        }
-        res.json(result[0]); // trả về 1 sản phẩm
-    });
-}); 
+// Lấy sản phẩm theo id
+app.get('/api/products/:id', async (req, res) => {
+  const productId = req.params.id;
+  try {
+    const results = await query('SELECT * FROM products WHERE id = ?', [productId]);
+    if (!results.length) return res.status(404).json({ error: "Product not found" });
+    res.json(results[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
 
 // API CHECKOUT
 app.post('/checkout', async (req, res) => {
@@ -384,208 +362,104 @@ app.post('/checkout', async (req, res) => {
 });
 
 // Lấy tất cả sản phẩm
-app.get("/products", (req, res) => {
-  db.query("SELECT * FROM products", (err, results) => {
-    if (err) return res.status(500).json({ error: err });
+app.get("/products", async (req, res) => {
+  try {
+    const results = await query("SELECT * FROM products");
     res.json(results);
-  });
+  } catch (err) {
+    res.status(500).json({ error: "Server error" });
+  }
 });
 
 // Thêm sản phẩm
-app.post("/products", (req, res) => {
+app.post("/products", async (req, res) => {
   const { name, price, stock } = req.body;
-  db.query(
-    "INSERT INTO products (name, price, stock) VALUES (?, ?, ?)",
-    [name, price, stock],
-    (err, result) => {
-      if (err) return res.status(500).json({ error: err });
-      res.json({ message: "Thêm sản phẩm thành công", id: result.insertId });
-    }
-  );
+  try {
+    const result = await query("INSERT INTO products (name, price, stock) VALUES (?, ?, ?)", [name, price, stock]);
+    res.json({ message: "Thêm sản phẩm thành công", id: result.insertId });
+  } catch (err) {
+    res.status(500).json({ error: "Server error" });
+  }
 });
 
 // Sửa sản phẩm
-app.put("/products/:id", (req, res) => {
+app.put("/products/:id", async (req, res) => {
   const { id } = req.params;
   const { name, price, stock } = req.body;
-  db.query(
-    "UPDATE products SET name = ?, price = ?, stock = ? WHERE id = ?",
-    [name, price, stock, id],
-    (err) => {
-      if (err) return res.status(500).json({ error: err });
-      res.json({ message: "Cập nhật sản phẩm thành công" });
-    }
-  );
+  try {
+    await query("UPDATE products SET name = ?, price = ?, stock = ? WHERE id = ?", [name, price, stock, id]);
+    res.json({ message: "Cập nhật sản phẩm thành công" });
+  } catch (err) {
+    res.status(500).json({ error: "Server error" });
+  }
 });
 
 // Xóa sản phẩm
-app.delete("/products/:id", (req, res) => {
+app.delete("/products/:id", async (req, res) => {
   const { id } = req.params;
-  db.query("DELETE FROM products WHERE id = ?", [id], (err) => {
-    if (err) return res.status(500).json({ error: err });
+  try {
+    await query("DELETE FROM products WHERE id = ?", [id]);
     res.json({ message: "Xóa sản phẩm thành công" });
-  });
+  } catch (err) {
+    res.status(500).json({ error: "Server error" });
+  }
 });
 
-// API đăng nhập
-app.post("/login", async (req, res) => {
-  const { username, password } = req.body;
 
+// =================== AUTH ===================
+// Đăng ký
+app.post("/register", async (req, res) => {
+  const { name, email, phone, address, username, password } = req.body;
+  if (!name || !email || !phone || !address || !username || !password)
+    return res.status(400).json({ error: "Missing required fields" });
   try {
-    console.log("Login attempt:", { username, password });
+    const existing = await query("SELECT * FROM customers WHERE email = ? OR username = ?", [email, username]);
+    if (existing.length) return res.status(400).json({ message: "Email hoặc username đã tồn tại" });
 
-    // --- ADMIN ---
-    const adminResults = await queryAsync(
-      "SELECT * FROM admin WHERE username = ? AND password_hash = ?",
-      [username, password]
+    const result = await query(
+      "INSERT INTO customers (name, email, phone, address, username, password) VALUES (?, ?, ?, ?, ?, ?)",
+      [name, email, phone, address, username, password]
     );
 
-    console.log("Admin results:", adminResults);
+    req.session.user = { id: result.insertId, name, email, username, provider: "local" };
+    res.json({ user: req.session.user, role: "customer" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
 
-    if (adminResults.length > 0) {
-      req.session.user = {
-        id: adminResults[0].id,
-        name: adminResults[0].name || adminResults[0].username,
-        role: "admin"
-      };
-
-      await new Promise((resolve, reject) => 
-        req.session.save(err => (err ? reject(err) : resolve()))
-      );
-
+// Đăng nhập
+app.post("/login", async (req, res) => {
+  const { username, password } = req.body;
+  try {
+    const admin = await query("SELECT * FROM admin WHERE username = ? AND password_hash = ?", [username, password]);
+    if (admin.length) {
+      req.session.user = { id: admin[0].id, name: admin[0].name || admin[0].username, role: "admin" };
       return res.json({ role: "admin", user: req.session.user });
     }
 
-    // --- CUSTOMER ---
-    const customerResults = await queryAsync(
-      "SELECT * FROM customers WHERE username = ? AND password = ?",
-      [username, password]
-    );
-
-    console.log("Customer results:", customerResults);
-
-    if (customerResults.length > 0) {
-      const user = customerResults[0];
+    const customer = await query("SELECT * FROM customers WHERE username = ? AND password = ?", [username, password]);
+    if (customer.length) {
       req.session.user = {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        username: user.username,
+        id: customer[0].id,
+        name: customer[0].name,
+        email: customer[0].email,
+        username: customer[0].username,
         provider: "local"
       };
-
-      await new Promise((resolve, reject) => 
-        req.session.save(err => (err ? reject(err) : resolve()))
-      );
-
       return res.json({ role: "customer", user: req.session.user });
     }
 
-    // --- KHÔNG TÌM THẤY ---
-    return res.status(401).json({ message: "Wrong username or password" });
-
+    res.status(401).json({ message: "Sai username hoặc password" });
   } catch (err) {
-    console.error("Login error:", err);
-    return res.status(500).json({ error: "Server error" });
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
   }
 });
 
-// API đăng ký
-app.post("/register", (req, res) => {
-  const { name, email, phone, address, username, password } = req.body;
-
-  if (!name || !email || !phone || !address || !username || !password) {
-    return res.status(400).json({ error: "Please fill in all required fields." });
-  }
-
-  db.query(
-    "SELECT * FROM customers WHERE email = ? OR username = ?",
-    [email, username],
-    (err, results) => {
-      if (err) return res.status(500).json({ error: "Server error" });
-      if (results.length > 0) return res.status(400).json({ message: "Email or username already exists." });
-
-      db.query(
-        "INSERT INTO customers (name, email, phone, address, username, password) VALUES (?, ?, ?, ?, ?, ?)",
-        [name, email, phone, address, username, password],
-        (err, result) => {
-          if (err) return res.status(500).json({ error: "Server error" });
-
-          // Lưu session với id từ insertId
-          req.session.user = {
-            id: result.insertId,
-            name,
-            email,
-            username,
-            provider: 'local'
-          };
-
-          res.json({ user: req.session.user, role: "customer" });
-        }
-      );
-    }
-  );
-});
-
-//API lấy danh sách khách hàng 
-app.get("/customers", (req, res) => {
-  db.query("SELECT * FROM customers", (err, results) => {
-    if (err) return res.status(500).json({ error: err });
-    res.json(results);
-  });
-});
-
-// API lưu contact
-app.post("/contact", (req, res) => {
-  const { name, email, subject, message, customer_id } = req.body;
-
-  if (!name || !email || !subject || !message) {
-    return res.status(400).json({ message: "Missing required fields." });
-  }
-
-  const sql =
-    "INSERT INTO contact (name, email, subject, message, customer_id) VALUES (?, ?, ?, ?, ?)";
-
-  db.query(
-    sql,
-    [name, email, subject, message, customer_id || null],
-    (err, result) => {
-      if (err) {
-        console.error("DB insert error:", err);
-        return res.status(500).json({ message: "Internal server error." });
-      }
-
-      // Gửi mail cho người dùng
-      const mailOptions = {
-        from: '"SPEAKERSTORE" dinhanhkiet510@gmail.com ', // người gửi
-        to: email, // người nhận
-        subject: `Thank you for contacting us, ${name}!`,
-        text: `Dear ${name},
-
-We have received your message with the subject: "${subject}".
-
-Our team will get back to you as soon as possible.
-
-Best regards,
-Your Company Team`,
-      };
-
-      transporter.sendMail(mailOptions, (error, info) => {
-        if (error) {
-          console.error("Error sending mail:", error);
-          // Không bắt buộc phải lỗi gửi mail làm thất bại request
-          return res.status(201).json({ message: "Contact saved, but email not sent." });
-        } else {
-          console.log("Email sent: " + info.response);
-          return res.status(201).json({ message: "Contact saved and email sent.", id: result.insertId });
-        }
-      });
-    }
-  );
-});
-
-// ================= API LẤY DANH SÁCH ĐƠN HÀNG =================
-app.get("/orders", (req, res) => {
+// ================= API lấy danh sách đơn hàng =================
+app.get("/orders", async (req, res) => {
   const sql = `
     SELECT 
       o.id AS order_id,
@@ -605,13 +479,9 @@ app.get("/orders", (req, res) => {
     ORDER BY o.order_date DESC
   `;
 
-  db.query(sql, (err, results) => {
-    if (err) {
-      console.error("❌ Lỗi lấy orders:", err);
-      return res.status(500).json({ error: "Lỗi server" });
-    }
+  try {
+    const results = await queryAsync(sql);
 
-    // Gom nhóm sản phẩm theo từng đơn hàng
     const ordersMap = {};
     results.forEach(row => {
       if (!ordersMap[row.order_id]) {
@@ -635,84 +505,77 @@ app.get("/orders", (req, res) => {
     });
 
     res.json(Object.values(ordersMap));
-  });
+  } catch (err) {
+    console.error("❌ Lỗi lấy orders:", err);
+    res.status(500).json({ error: "Lỗi server" });
+  }
 });
 
-// API cập nhật trạng thái đơn hàng
-app.put("/orders/:id", (req, res) => {
+// ================= API cập nhật trạng thái đơn hàng =================
+app.put("/orders/:id", async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
+  if (!status) return res.status(400).json({ message: "Status is required" });
 
-  if (!status) {
-    return res.status(400).json({ message: "Status is required" });
-  }
-
-  const sql = "UPDATE orders SET status = ? WHERE id = ?";
-  db.query(sql, [status, id], (err, result) => {
-    if (err) {
-      console.error("Lỗi cập nhật đơn hàng:", err);
-      return res.status(500).json({ error: "Lỗi server" });
-    }
-
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ message: "Order not found" });
-    }
-
+  try {
+    const result = await queryAsync("UPDATE orders SET status = ? WHERE id = ?", [status, id]);
+    if (result.affectedRows === 0) return res.status(404).json({ message: "Order not found" });
     res.json({ message: "Order status updated successfully" });
-  });
+  } catch (err) {
+    console.error("Lỗi cập nhật đơn hàng:", err);
+    res.status(500).json({ error: "Lỗi server" });
+  }
 });
 
-//API cập nhập thông tin khách hàng
-app.put("/api/customers/me", (req, res) => {
+// ================= API cập nhật thông tin khách hàng =================
+app.put("/api/customers/me", async (req, res) => {
   const id = req.session.user?.id;
   if (!id) return res.status(401).json({ message: "Unauthorized" });
 
   const { name, phone, address, avatar } = req.body;
-  const sql = "UPDATE customers SET name = ?, phone = ?, address = ?, avatar = ? WHERE id = ?";
-  db.query(sql, [name, phone, address, avatar, id], (err, result) => {
-    if (err) return res.status(500).json({ message: "Server error" });
+  try {
+    await queryAsync("UPDATE customers SET name = ?, phone = ?, address = ?, avatar = ? WHERE id = ?", [name, phone, address, avatar, id]);
     res.json({ message: "Profile updated successfully" });
-  });
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
-//API thể hiện thông tin khách hàng
-app.get("/api/customers/me", (req, res) => {
-  const id = req.session.user?.id; // dùng id thay vì email
+// ================= API lấy thông tin khách hàng =================
+app.get("/api/customers/me", async (req, res) => {
+  const id = req.session.user?.id;
   if (!id) return res.status(401).json({ message: "Unauthorized" });
 
-  const sql = "SELECT id, name, email, phone, address, username, avatar, provider FROM customers WHERE id = ?";
-  db.query(sql, [id], (err, results) => {
-    if (err) return res.status(500).json({ message: "Server error" });
+  try {
+    const results = await queryAsync("SELECT id, name, email, phone, address, username, avatar, provider FROM customers WHERE id = ?", [id]);
     if (results.length === 0) return res.status(404).json({ message: "Customer not found" });
     res.json(results[0]);
-  });
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
-// API: Cập nhật mật khẩu (plain text)
-app.put("/api/customers/me/password", (req, res) => {
+// ================= API cập nhật mật khẩu =================
+app.put("/api/customers/me/password", async (req, res) => {
   const id = req.session.user?.id;
   if (!id) return res.status(401).json({ message: "Unauthorized" });
 
   const { oldPassword, newPassword } = req.body;
   if (!oldPassword || !newPassword) return res.status(400).json({ message: "Missing password fields" });
 
-  const sqlGet = "SELECT password FROM customers WHERE id = ?";
-  db.query(sqlGet, [id], (err, results) => {
-    if (err) return res.status(500).json({ message: "Server error" });
+  try {
+    const results = await queryAsync("SELECT password FROM customers WHERE id = ?", [id]);
     if (results.length === 0) return res.status(404).json({ message: "Customer not found" });
+    if (results[0].password !== oldPassword) return res.status(400).json({ message: "Old password incorrect" });
 
-    const currentPassword = results[0].password;
-    if (currentPassword !== oldPassword) return res.status(400).json({ message: "Old password incorrect" });
-
-    const sqlUpdate = "UPDATE customers SET password = ? WHERE id = ?";
-    db.query(sqlUpdate, [newPassword, id], (err, result) => {
-      if (err) return res.status(500).json({ message: "Server error" });
-      res.json({ message: "Password updated successfully" });
-    });
-  });
+    await queryAsync("UPDATE customers SET password = ? WHERE id = ?", [newPassword, id]);
+    res.json({ message: "Password updated successfully" });
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
-//API lấy đơn hàng của khách hàng kèm hình ảnh sản phẩm
+// ================= API lấy đơn hàng của khách hàng =================
 app.get("/api/orders/my-orders/:id", async (req, res) => {
   const userId = req.session.user?.id;
   if (!userId) return res.status(401).json({ message: "Unauthorized" });
@@ -736,13 +599,8 @@ app.get("/api/orders/my-orders/:id", async (req, res) => {
     ORDER BY o.id DESC
   `;
 
-  db.query(sql, [userId], (err, results) => {
-    if (err) {
-      console.error("Lỗi truy vấn:", err);
-      return res.status(500).json({ error: "Lỗi server" });
-    }
-
-    // Gom nhóm sản phẩm cùng đơn hàng
+  try {
+    const results = await queryAsync(sql, [userId]);
     const ordersMap = {};
     results.forEach(row => {
       if (!ordersMap[row.order_id]) {
@@ -759,126 +617,68 @@ app.get("/api/orders/my-orders/:id", async (req, res) => {
         name: row.product_name,
         quantity: row.quantity,
         price: parseFloat(row.price),
-        img: row.product_img  // thêm ảnh sản phẩm
+        img: row.product_img
       });
     });
-
     res.json(Object.values(ordersMap));
-  });
+  } catch (err) {
+    console.error("Lỗi truy vấn:", err);
+    res.status(500).json({ error: "Lỗi server" });
+  }
 });
 
-// Hàm gọi Gemini có retry
-async function callGeminiWithRetry(prompt, retries = 3, delay = 2000) {
-  for (let i = 0; i < retries; i++) {
-    try {
-      const result = await model.generateContent({
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-      });
-      return result.response.text();
-    } catch (err) {
-      if (err.status === 503 && i < retries - 1) {
-        console.warn(`Gemini quá tải, thử lại lần ${i + 1}/${retries}...`);
-        await new Promise((res) => setTimeout(res, delay));
-      } else {
-        throw err;
-      }
-    }
-  }
-}
-
+// ================= API Chatbot =================
 app.post("/chat", async (req, res) => {
   try {
     const { message } = req.body;
     if (!message) return res.status(400).json({ error: "Message is required" });
 
     // 1. Tìm sản phẩm theo tên
-    const sqlFind = "SELECT name, price, stock, img FROM products WHERE name LIKE ?";
-    db.query(sqlFind, [`%${message}%`], async (err, productResults) => {
-      if (err) {
-        console.error("❌ Lỗi query DB:", err);
-        return res.status(500).json({ error: "Lỗi DB" });
-      }
+    const productResults = await queryAsync("SELECT name, price, stock, img FROM products WHERE name LIKE ?", [`%${message}%`]);
+    if (productResults.length > 0) {
+      let reply = "<b>Thông tin sản phẩm bạn quan tâm:</b><br/>";
+      productResults.forEach(p => {
+        reply += `- <b>${p.name}</b><br/>Giá: ${p.price} VND | SL: ${p.stock}<br/><img src="/${p.img}" alt="sản phẩm" style="max-width:120px"/><br/><br/>`;
+      });
+      return res.json({ reply });
+    }
 
-      if (productResults.length > 0) {
-        let reply = "<b>Thông tin sản phẩm bạn quan tâm:</b><br/>";
-        productResults.forEach((p) => {
+    // 2. Tìm theo danh mục
+    const categoryMap = { amp: 1, amps: 1, loa: 2, speaker: 2, speakers: 2, "tai nghe": 3, headphone: 3, headphones: 3 };
+    const categoryId = Object.entries(categoryMap).find(([kw]) => message.toLowerCase().includes(kw))?.[1];
+
+    if (categoryId) {
+      const catResults = await queryAsync("SELECT name, price, stock, img FROM products WHERE category_id = ? LIMIT 5", [categoryId]);
+      if (catResults.length > 0) {
+        let reply = "<b>Một số sản phẩm nổi bật trong danh mục bạn quan tâm:</b><br/>";
+        catResults.forEach(p => {
           reply += `- <b>${p.name}</b><br/>Giá: ${p.price} VND | SL: ${p.stock}<br/><img src="/${p.img}" alt="sản phẩm" style="max-width:120px"/><br/><br/>`;
         });
         return res.json({ reply });
-      }
-
-      // 2. Tìm theo danh mục
-      const categoryMap = {
-        "amp": 1,
-        "amps": 1,
-        "loa": 2,
-        "speaker": 2,
-        "speakers": 2,
-        "tai nghe": 3,
-        "headphone": 3,
-        "headphones": 3,
-      };
-
-      let categoryId = null;
-      for (const [kw, id] of Object.entries(categoryMap)) {
-        if (message.toLowerCase().includes(kw)) {
-          categoryId = id;
-          break;
-        }
-      }
-
-      if (categoryId) {
-        const sqlCategory = "SELECT name, price, stock, img FROM products WHERE category_id = ? LIMIT 5";
-        db.query(sqlCategory, [categoryId], (err, results) => {
-          if (err) {
-            console.error("❌ Lỗi query DB:", err);
-            return res.status(500).json({ error: "Lỗi DB" });
-          }
-
-          if (results.length > 0) {
-            let reply = "<b>Một số sản phẩm nổi bật trong danh mục bạn quan tâm:</b><br/>";
-            results.forEach((p) => {
-              reply += `- <b>${p.name}</b><br/>Giá: ${p.price} VND | SL: ${p.stock}<br/><img src="/${p.img}" alt="sản phẩm" style="max-width:120px"/><br/><br/>`;
-            });
-            return res.json({ reply });
-          } else {
-            return res.json({ reply: "⚠ Hiện chưa có sản phẩm nào trong danh mục này!" });
-          }
-        });
       } else {
-        // 3. Nếu không tìm thấy gì thì hỏi Gemini
-        try {
-          const aiReply = await callGeminiWithRetry(
-            `Người dùng hỏi: "${message}". Nếu liên quan sản phẩm, hãy trả lời gợi ý. Nếu không liên quan sản phẩm, trả lời như một trợ lý AI thân thiện.`
-          );
-
-          if (!aiReply) {
-            return res.json({ reply: "🤖 Xin lỗi, tôi chưa có câu trả lời cho bạn." });
-          }
-
-          return res.json({ reply: aiReply });
-        } catch (err) {
-          console.error("❌ Gemini error:", err);
-          return res.json({ reply: "🤖 Xin lỗi, hệ thống AI đang quá tải, vui lòng thử lại sau." });
-        }
+        return res.json({ reply: "⚠ Hiện chưa có sản phẩm nào trong danh mục này!" });
       }
-    });
+    }
+
+    // 3. Nếu không tìm thấy gì thì gọi Gemini
+    const aiReply = await callGeminiWithRetry(
+      `Người dùng hỏi: "${message}". Nếu liên quan sản phẩm, hãy trả lời gợi ý. Nếu không liên quan sản phẩm, trả lời như một trợ lý AI thân thiện.`
+    );
+    res.json({ reply: aiReply || "🤖 Xin lỗi, tôi chưa có câu trả lời cho bạn." });
+
   } catch (err) {
     console.error("Chatbot error:", err);
     res.status(500).json({ error: "Chatbot bị lỗi" });
   }
 });
 
-
 // ---------------- SOCKET.IO ----------------
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: [
-      "https://doanchuyennganh.vercel.app"
-    ],
+    origin: ["https://doanchuyennganh.vercel.app"],
     methods: ["GET", "POST"],
-    credentials: true
+    credentials: true,
   },
 });
 
@@ -890,6 +690,7 @@ io.on("connection", (socket) => {
 
   // Khi client join
   socket.on("join", ({ userId, role }) => {
+    if (!userId || !role) return;
     socket.userId = userId;
     socket.role = role;
     onlineUsers.set(userId, socket.id);
@@ -906,27 +707,26 @@ io.on("connection", (socket) => {
     const isAdminSender = socket.role === "admin";
 
     try {
-      // 1. Lưu DB
-      const result = await query(
+      const result = await queryAsync(
         "INSERT INTO messages (sender_id, receiver_id, message, is_admin_sender) VALUES (?, ?, ?, ?)",
         [socket.userId, receiverId, message, isAdminSender]
       );
       console.log("💾 Message saved:", message, "ID:", result.insertId);
 
       const payload = {
+        id: result.insertId,
         senderId: socket.userId,
         receiverId,
         senderRole: isAdminSender ? "admin" : "customer",
         message,
+        created_at: new Date(),
       };
 
-      // 2. Gửi cho người nhận (nếu online)
+      // Gửi cho người nhận (nếu online)
       const receiverSocketId = onlineUsers.get(receiverId);
-      if (receiverSocketId) {
-        io.to(receiverSocketId).emit("receiveMessage", payload);
-      }
+      if (receiverSocketId) io.to(receiverSocketId).emit("receiveMessage", payload);
 
-      // 3. Gửi lại cho chính người gửi (để hiển thị ngay)
+      // Gửi lại cho người gửi
       socket.emit("receiveMessage", payload);
 
     } catch (err) {
@@ -943,8 +743,10 @@ io.on("connection", (socket) => {
 // API lấy toàn bộ chat giữa customer và admin
 app.get("/messages/:customerId", async (req, res) => {
   const { customerId } = req.params;
+  if (!customerId) return res.status(400).json({ error: "Customer ID required" });
+
   try {
-    const rows = await query(
+    const rows = await queryAsync(
       `SELECT id, sender_id, receiver_id, message, is_admin_sender, created_at
        FROM messages
        WHERE sender_id = ? OR receiver_id = ?
@@ -953,19 +755,19 @@ app.get("/messages/:customerId", async (req, res) => {
     );
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("❌ Error fetching messages:", err);
+    res.status(500).json({ error: "Server error" });
   }
 });
-
 
 // ==================== API THỐNG KÊ ====================
 
 // Thống kê số đơn hàng & doanh thu theo tháng
-app.get("/api/statistics", (req, res) => {
+app.get("/api/statistics", async (req, res) => {
   const sql = `
     SELECT 
       DATE_FORMAT(o.order_date, '%Y-%m') AS month,
-      COUNT(DISTINCT o.id) AS totalOrders,   -- mỗi đơn hàng chỉ tính 1 lần
+      COUNT(DISTINCT o.id) AS totalOrders,
       SUM(oi.quantity * oi.price) AS totalRevenue
     FROM orders o
     JOIN order_items oi ON o.id = oi.order_id
@@ -974,17 +776,17 @@ app.get("/api/statistics", (req, res) => {
     ORDER BY month ASC
   `;
 
-  db.query(sql, (err, results) => {
-    if (err) {
-      console.error("❌ Lỗi khi lấy statistics:", err);
-      return res.status(500).json({ error: "Lỗi server" });
-    }
+  try {
+    const results = await queryAsync(sql);
     res.json(results);
-  });
+  } catch (err) {
+    console.error("❌ Error fetching statistics:", err);
+    res.status(500).json({ error: "Server error" });
+  }
 });
 
 // Thống kê top 5 sản phẩm bán chạy nhất
-app.get("/api/statistics/top-products", (req, res) => {
+app.get("/api/statistics/top-products", async (req, res) => {
   const sql = `
     SELECT 
       oi.product_id,
@@ -999,20 +801,17 @@ app.get("/api/statistics/top-products", (req, res) => {
     LIMIT 5
   `;
 
-  db.query(sql, (err, results) => {
-    if (err) {
-      console.error("❌ Lỗi khi lấy top products:", err);
-      return res.status(500).json({ error: "Lỗi server" });
-    }
+  try {
+    const results = await queryAsync(sql);
     res.json(results);
-  });
+  } catch (err) {
+    console.error("❌ Error fetching top products:", err);
+    res.status(500).json({ error: "Server error" });
+  }
 });
-
-
 
 // Khởi động server
 const PORT = process.env.PORT || 5000;
-
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`Server đang chạy tại cổng ${PORT}`);
 });
