@@ -691,6 +691,16 @@ app.post("/chat", async (req, res) => {
 });
 
 // ---------------- SOCKET.IO ----------------
+// Tạo server HTTP dựa trên express
+const server = http.createServer(app);
+// Khởi tạo io từ server HTTP
+const io = new Server(server, {
+  cors: {
+    origin: "https://doanchuyennganh.vercel.app",
+    methods: ["GET", "POST"],
+    credentials: true,
+  },
+});
 io.on("connection", (socket) => {
   console.log("🔌 New client connected:", socket.id);
 
