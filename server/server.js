@@ -158,13 +158,23 @@ app.get("/api/current_user", async (req, res) => {
   if (!req.session.user) return res.status(200).json({ user: null });
   try {
     const { id } = req.session.user;
-    const results = await query("SELECT id, name, email, phone, address, username, avatar, provider FROM customers WHERE id = ? LIMIT 1", [id]);
+    console.log("Session user:", req.session.user); // debug session
+
+    const results = await query(
+      `SELECT id, name, email, phone, address, username, provider, provider_id, avatar 
+       FROM customers 
+       WHERE id = ? 
+       LIMIT 1`,
+      [id]
+    );
+
     res.status(200).json({ user: results[0] || null });
   } catch (err) {
     console.error("Error fetching current user:", err);
     res.status(500).json({ user: null });
   }
 });
+
 
 // =================== Logout ===================
 app.post("/api/logout", async (req, res) => {
