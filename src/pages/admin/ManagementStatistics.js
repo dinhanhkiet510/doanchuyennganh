@@ -51,11 +51,11 @@ export default function ManagementStatistics() {
 
   // Doanh thu tháng gần nhất
   const latestMonthRevenue =
-    orderStats.length > 0 ? orderStats[orderStats.length - 1].totalRevenue : 0;
+    orderStats.length > 0 ? Number(orderStats[orderStats.length - 1].totalRevenue || 0) : 0;
 
   // Tổng số đơn hàng
   const totalOrders = orderStats.reduce(
-    (sum, item) => sum + (item.totalOrders || 0),
+    (sum, item) => sum + Number(item.totalOrders || 0),
     0
   );
 
@@ -142,7 +142,7 @@ export default function ManagementStatistics() {
           <div className="card shadow-sm border-0">
             <div className="card-body text-center">
               <h5 className="card-title text-primary">Tổng doanh thu</h5>
-              <h3 className="fw-bold text-success">{totalRevenueAll.toLocaleString()} $</h3>
+              <h3 className="fw-bold text-success">{totalRevenueAll.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $</h3>
             </div>
           </div>
         </div>
@@ -150,7 +150,7 @@ export default function ManagementStatistics() {
           <div className="card shadow-sm border-0">
             <div className="card-body text-center">
               <h5 className="card-title text-primary">Doanh thu tháng gần nhất</h5>
-              <h3 className="fw-bold text-warning">{latestMonthRevenue.toLocaleString()} $</h3>
+              <h3 className="fw-bold text-warning">{latestMonthRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $</h3>
             </div>
           </div>
         </div>
@@ -158,7 +158,7 @@ export default function ManagementStatistics() {
           <div className="card shadow-sm border-0">
             <div className="card-body text-center">
               <h5 className="card-title text-primary">Tổng số đơn hàng</h5>
-              <h3 className="fw-bold text-info">{totalOrders}</h3>
+              <h3 className="fw-bold text-info">{totalOrders.toLocaleString()}</h3>
             </div>
           </div>
         </div>
