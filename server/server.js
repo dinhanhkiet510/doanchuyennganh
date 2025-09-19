@@ -24,6 +24,10 @@ app.use(cors({
   allowedHeaders: ["Content-Type"],
   methods: ["GET","POST","PUT","DELETE","OPTIONS"]
 }));
+app.use((req, res, next) => {
+  console.log("Incoming request:", req.method, req.url);
+  next();
+});
 
 app.options("*", (req, res) => {
   res.sendStatus(200); // trả về OK cho preflight
