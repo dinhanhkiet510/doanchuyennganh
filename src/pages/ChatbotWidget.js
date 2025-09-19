@@ -64,30 +64,30 @@
       if (!input.trim()) return;
       const text = input.trim();
       setInput("");
-
       if (mode === "ai") {
-        // Hiện tin nhắn user ngay lập tức
-        setMessages((prev) => [...prev, { role: "user", content: text }]);
-
         try {
           const res = await axios.post(`${process.env.REACT_APP_API_URL}/chat`, { message: text });
           setMessages((prev) => [...prev, { role: "ai", content: res.data.reply }]);
         } catch (err) {
           console.error(err);
-          setMessages((prev) => [...prev, { role: "ai", content: "Có lỗi xảy ra. Vui lòng thử lại." }]);
+          setMessages((prev) => [
+            ...prev,
+            { role: "ai", content: "Có lỗi xảy ra. Vui lòng thử lại." },
+          ]);
         }
       } else {
-        // Hiện tin nhắn user ngay lập tức
-        setMessages((prev) => [...prev, { role: "user", content: text }]);
-
+        // Chat với admin
         socket.emit("sendMessage", {
           senderId: userId,
           receiverId: 1, // ID admin cố định
+          receiverRole: "admin",
           message: text,
+          isAdminSender: false,
         });
+        
+        console.log("Gửi cho admin:", text);
       }
     };
-
 
     return (
       <>
