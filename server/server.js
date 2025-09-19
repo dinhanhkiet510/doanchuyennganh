@@ -159,13 +159,13 @@ passport.use(new FacebookStrategy({
 app.get("/auth/google", passport.authenticate("google",{scope:["profile","email"]}));
 app.get("/auth/google/callback", passport.authenticate("google",{failureRedirect:"/"}), (req,res) => {
   req.session.user = req.user;
-  res.redirect("http://localhost:3000");
+  res.redirect("https://doanchuyennganh.vercel.app");
 });
 
 app.get("/auth/facebook", passport.authenticate("facebook",{scope:["email"]}));
 app.get("/auth/facebook/callback", passport.authenticate("facebook",{failureRedirect:"/"}), (req,res) => {
   req.session.user = req.user;
-  res.redirect("http://localhost:3000");
+  res.redirect("https://doanchuyennganh.vercel.app");
 });
 
 // =================== MAIL ===================
