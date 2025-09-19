@@ -78,6 +78,22 @@ app.use(session({
   }
 }));
 
+  // =================== EMBEDDING & SIMILARITY ===================
+  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+  async function getEmbedding(text) {
+    const model = genAI.getGenerativeModel({ model: "embedding-001" });
+    const result = await model.embedContent(text);
+    return result.embedding.values; // array float
+  }
+
+  function cosineSimilarity(a, b) {
+    const dot = a.reduce((sum, val, i) => sum + val * b[i], 0);
+    const normA = Math.sqrt(a.reduce((sum, val) => sum + val * val, 0));
+    const normB = Math.sqrt(b.reduce((sum, val) => sum + val * val, 0));
+    return dot / (normA * normB);
+  }
+
 // =================== PASSPORT ===================
 app.use(passport.initialize());
 app.use(passport.session());
@@ -702,88 +718,80 @@ app.get("/api/orders/my-orders/:customerId", async (req, res) => {
   }
 });
 
-/// ================= API Chatbot =================
+// =================== API Chatbot với RAG ===================
 app.post("/chat", async (req, res) => {
   try {
     const { message } = req.body;
-    console.log("📩 Chat message:", message);
+    console.log("Chat message:", message);
 
     if (!message) {
       return res.status(400).json({ error: "Message is required" });
     }
 
-    // 1. Tìm sản phẩm theo tên
-    try {
-      const productResults = await query(
-        "SELECT name, price, stock, img FROM products WHERE name LIKE ?",
-        [`%${message}%`]
-      );
+    // 1. Tạo embedding cho câu hỏi
+    const userEmbedding = await getEmbedding(message);
 
-      if (productResults.length > 0) {
-        let reply = "<b>Thông tin sản phẩm bạn quan tâm:</b><br/>";
-        productResults.forEach((p) => {
-          reply += `- <b>${p.name}</b><br/>Giá: ${p.price} VND | SL: ${p.stock}<br/><img src="/${p.img}" alt="sản phẩm" style="max-width:120px"/><br/><br/>`;
-        });
-        return res.json({ reply });
-      }
-    } catch (dbErr) {
-      console.error("❌ DB error in /chat:", dbErr);
-    }
-
-    // 2. Tìm theo danh mục
-    const categoryMap = {
-      amp: 1,
-      amps: 1,
-      loa: 2,
-      speaker: 2,
-      speakers: 2,
-      "tai nghe": 3,
-      headphone: 3,
-      headphones: 3,
-    };
-
-    const categoryId = Object.entries(categoryMap).find(([kw]) =>
-      message.toLowerCase().includes(kw)
-    )?.[1];
-
-    if (categoryId) {
-      const catResults = await query(
-        "SELECT name, price, stock, img FROM products WHERE category_id = ? LIMIT 5",
-        [categoryId]
-      );
-
-      if (catResults.length > 0) {
-        let reply =
-          "<b>Một số sản phẩm nổi bật trong danh mục bạn quan tâm:</b><br/>";
-        catResults.forEach((p) => {
-          reply += `- <b>${p.name}</b><br/>Giá: ${p.price} VND | SL: ${p.stock}<br/><img src="/${p.img}" alt="sản phẩm" style="max-width:120px"/><br/><br/>`;
-        });
-        return res.json({ reply });
-      } else {
-        return res.json({
-          reply: "⚠ Hiện chưa có sản phẩm nào trong danh mục này!",
-        });
-      }
-    }
-
-    // 3. Nếu không tìm thấy gì thì gọi Gemini
-    if (typeof callGeminiWithRetry !== "function") {
-      console.warn("⚠ callGeminiWithRetry chưa được định nghĩa!");
-      return res.json({
-        reply: "🤖 Xin lỗi, chatbot chưa được cấu hình AI!",
-      });
-    }
-
-    const aiReply = await callGeminiWithRetry(
-      `Người dùng hỏi: "${message}". Nếu liên quan sản phẩm, hãy trả lời gợi ý. Nếu không liên quan sản phẩm, trả lời như một trợ lý AI thân thiện.`
+    // 2. Lấy toàn bộ sản phẩm từ MySQL
+    const products = await query(
+      "SELECT id, name, description, price, stock, img, embedding FROM products"
     );
 
-    res.json({ reply: aiReply || "🤖 Xin lỗi, tôi chưa có câu trả lời cho bạn." });
+    if (products.length === 0) {
+      return res.json({ reply: "⚠ Hiện chưa có dữ liệu sản phẩm trong DB!" });
+    }
+
+    // 3. Tính similarity
+    const ranked = products.map((p) => {
+      let score = 0;
+      if (p.embedding) {
+        try {
+          const prodEmbedding = JSON.parse(p.embedding);
+          score = cosineSimilarity(userEmbedding, prodEmbedding);
+        } catch (err) {
+          console.error("Parse embedding error:", err);
+        }
+      }
+      return { ...p, score };
+    });
+
+    ranked.sort((a, b) => b.score - a.score);
+    const topProducts = ranked.slice(0, 5);
+
+    // 4. Nếu có sản phẩm liên quan → tạo context + gọi Gemini
+    if (topProducts.length > 0 && topProducts[0].score > 0.7) {
+      const context = topProducts
+        .map(
+          (p) =>
+            `Tên: ${p.name}, Giá: ${p.price} VND, SL: ${p.stock}, Mô tả: ${p.description}`
+        )
+        .join("\n");
+
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      const aiResp = await model.generateContent(
+        `Người dùng hỏi: "${message}".
+        Đây là dữ liệu sản phẩm phù hợp:
+        ${context}
+        → Hãy trả lời thân thiện, gợi ý sản phẩm hợp lý cho người dùng.`
+      );
+
+      return res.json({ reply: aiResp.response.text() });
+    }
+
+    // 5. Nếu không tìm thấy gì → fallback AI
+    const fallbackModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const fallbackResp = await fallbackModel.generateContent(
+      `Người dùng hỏi: "${message}". 
+       Không có dữ liệu sản phẩm liên quan. 
+       Hãy trả lời như một trợ lý AI thân thiện.`
+    );
+
+    res.json({ reply: fallbackResp.response.text() });
   } catch (err) {
-    console.error("❌ Chatbot error:", err);
+    console.error("Chatbot error:", err);
     res.status(500).json({ error: "Chatbot bị lỗi", detail: err.message });
   }
 });
+
 
 // ---------------- SOCKET.IO ----------------
 // Map lưu userId -> socketId
@@ -823,7 +831,7 @@ io.on("connection", (socket) => {
         [socket.userId, receiverId, message, isAdminSender]
       );
 
-      console.log("💾 Message saved:", message, "ID:", result.insertId);
+      console.log("Message saved:", message, "ID:", result.insertId);
 
       const payload = {
         id: result.insertId,

@@ -53,7 +53,7 @@
             }));
             setMessages(mapped);
           })
-          .catch((err) => console.error("❌ Load history error:", err));
+          .catch((err) => console.error("Load history error:", err));
       } else {
         setMessages([]); // reset khi quay lại AI
       }
@@ -85,7 +85,7 @@
           isAdminSender: false,
         });
         
-        console.log("📤 Gửi cho admin:", text);
+        console.log("Gửi cho admin:", text);
       }
     };
 
