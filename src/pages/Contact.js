@@ -32,16 +32,16 @@ function Contact() {
 
       if (res.ok) {
         setStatus("success");
-        setStatusMessage("✅ Your message has been sent successfully!");
+        setStatusMessage("Your message has been sent successfully!");
         setFormData({ name: "", email: "", subject: "", message: "" });
       } else {
         const errorData = await res.json();
         setStatus("error");
-        setStatusMessage(`❌ ${errorData.message || "Failed to send message."}`);
+        setStatusMessage(`${errorData.message || "Failed to send message."}`);
       }
     } catch (error) {
       setStatus("error");
-      setStatusMessage(`❌ ${error.message || "Network error."}`);
+      setStatusMessage(` ${error.message || "Network error."}`);
     }
 
     // 5 giây sau tự ẩn
