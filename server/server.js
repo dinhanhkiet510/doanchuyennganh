@@ -728,10 +728,15 @@ app.post("/chat", async (req, res) => {
       return res.status(400).json({ error: "Message is required" });
     }
 
-    // 1. Tạo embedding cho câu hỏi
-    const userEmbedding = await getEmbedding(message);
+    // 1. Tạo embedding cho câu hỏi (có try/catch riêng)
+    let userEmbedding = null;
+    try {
+      userEmbedding = await getEmbedding(message);
+    } catch (err) {
+      console.error("Embedding API error:", err.message);
+    }
 
-    // 2. Lấy toàn bộ sản phẩm từ MySQL
+    // 2. Lấy sản phẩm từ MySQL
     const products = await query(
       "SELECT id, name, description, price, stock, img, embedding FROM products"
     );
@@ -740,25 +745,28 @@ app.post("/chat", async (req, res) => {
       return res.json({ reply: "⚠ Hiện chưa có dữ liệu sản phẩm trong DB!" });
     }
 
-    // 3. Tính similarity
-    const ranked = products.map((p) => {
-      let score = 0;
-      if (p.embedding) {
-        try {
-          const prodEmbedding = JSON.parse(p.embedding);
-          score = cosineSimilarity(userEmbedding, prodEmbedding);
-        } catch (err) {
-          console.error("Parse embedding error:", err);
+    // 3. Nếu có embedding thì tính similarity
+    let topProducts = [];
+    if (userEmbedding) {
+      const ranked = products.map((p) => {
+        let score = 0;
+        if (p.embedding) {
+          try {
+            const prodEmbedding = JSON.parse(p.embedding);
+            score = cosineSimilarity(userEmbedding, prodEmbedding);
+          } catch (err) {
+            console.error("Parse embedding error:", err);
+          }
         }
-      }
-      return { ...p, score };
-    });
+        return { ...p, score };
+      });
 
-    ranked.sort((a, b) => b.score - a.score);
-    const topProducts = ranked.slice(0, 5);
+      ranked.sort((a, b) => b.score - a.score);
+      topProducts = ranked.slice(0, 5);
+    }
 
     // 4. Nếu có sản phẩm liên quan → tạo context + gọi Gemini
-    if (topProducts.length > 0 && topProducts[0].score > 0.7) {
+    if (topProducts.length > 0 && topProducts[0].score > 0.6) {
       const context = topProducts
         .map(
           (p) =>
@@ -768,20 +776,20 @@ app.post("/chat", async (req, res) => {
 
       const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
       const aiResp = await model.generateContent(
-        `Người dùng hỏi: "${message}".
-        Đây là dữ liệu sản phẩm phù hợp:
-        ${context}
+        `Người dùng hỏi: "${message}".\n
+        Đây là dữ liệu sản phẩm phù hợp:\n
+        ${context}\n
         → Hãy trả lời thân thiện, gợi ý sản phẩm hợp lý cho người dùng.`
       );
 
       return res.json({ reply: aiResp.response.text() });
     }
 
-    // 5. Nếu không tìm thấy gì → fallback AI
+    // 5. Nếu không tìm thấy gì hoặc embedding fail → fallback AI
     const fallbackModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
     const fallbackResp = await fallbackModel.generateContent(
-      `Người dùng hỏi: "${message}". 
-       Không có dữ liệu sản phẩm liên quan. 
+      `Người dùng hỏi: "${message}".\n
+       Không có dữ liệu sản phẩm liên quan hoặc quota embedding đã hết.\n
        Hãy trả lời như một trợ lý AI thân thiện.`
     );
 
