@@ -483,55 +483,45 @@ app.post("/checkout", async (req, res) => {
 });
 
 // =================== CONTACT ===================
-app.post("/api/contact", (req, res) => {
-  console.log("📩 Body nhận được:", req.body);
+app.post("/api/contact", async (req, res) => {
   const { name, email, subject, message, customer_id } = req.body;
 
-  // Validate
   if (!name || !email || !subject || !message) {
     return res.status(400).json({ message: "Missing required fields." });
   }
 
-  const sql = `
-    INSERT INTO contact (name, email, subject, message, customer_id)
-    VALUES (?, ?, ?, ?, ?)
-  `;
+  try {
+    const result = await db.promise().query(
+      `INSERT INTO contact (name, email, subject, message, customer_id)
+       VALUES (?, ?, ?, ?, ?)`,
+      [name, email, subject, message, customer_id || null]
+    );
 
-  db.query(
-    sql,
-    [name, email, subject, message, customer_id || null],
-    (err, result) => {
-      if (err) {
-        console.error("❌ DB insert error:", err);
-        return res.status(500).json({ message: "Internal server error." });
-      }
+    const mailOptions = {
+      from: '"SPEAKERSTORE" <dinhanhkiet510@gmail.com>',
+      to: email,
+      subject: `Thank you for contacting us, ${name}!`,
+      text: `Dear ${name},\n\nWe received your message: "${subject}".\nOur team will contact you soon.\n\nSPEAKERSTORE Team`,
+    };
 
-      // Cấu hình email
-      const mailOptions = {
-        from: '"SPEAKERSTORE" <dinhanhkiet510@gmail.com>', // người gửi
-        to: email, // người nhận
-        subject: `Thank you for contacting us, ${name}!`,
-        text: `Dear ${name},\n\nWe have received your message with the subject: "${subject}".\nOur team will get back to you as soon as possible.\n\nBest regards,\nSPEAKERSTORE Team`,
-      };
-
-      // Gửi email phản hồi
-      transporter.sendMail(mailOptions, (error, info) => {
-        if (error) {
-          console.error("❌ Error sending mail:", error);
-          return res.status(201).json({
-            message: "Contact saved, but email not sent.",
-            id: result.insertId,
-          });
-        }
-
-        console.log("Email sent:", info.response);
-        return res.status(201).json({
-          message: "Contact saved and email sent.",
-          id: result.insertId,
-        });
+    try {
+      const info = await sendMailAsync(mailOptions);
+      console.log("Email sent:", info.response);
+      return res.status(201).json({
+        message: "Contact saved and email sent.",
+        id: result[0].insertId,
+      });
+    } catch (mailErr) {
+      console.error("Mail error:", mailErr);
+      return res.status(201).json({
+        message: "Contact saved, but email not sent.",
+        id: result[0].insertId,
       });
     }
-  );
+  } catch (err) {
+    console.error("DB error:", err);
+    return res.status(500).json({ message: "Internal server error." });
+  }
 });
 
 // =================== API admin lấy toàn bộ đơn hàng ===================
