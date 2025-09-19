@@ -484,43 +484,51 @@ app.post("/checkout", async (req, res) => {
 
 // =================== CONTACT ===================
 app.post("/api/contact", async (req, res) => {
-  const { name, email, subject, message, customer_id } = req.body;
-
-  if (!name || !email || !subject || !message) {
-    return res.status(400).json({ message: "Missing required fields." });
-  }
-
   try {
-    const result = await db.promise().query(
-      `INSERT INTO contact (name, email, subject, message, customer_id)
-       VALUES (?, ?, ?, ?, ?)`,
-      [name, email, subject, message, customer_id || null]
-    );
+    const { name, email, subject, message, customer_id } = req.body;
 
-    const mailOptions = {
-      from: '"SPEAKERSTORE" <dinhanhkiet510@gmail.com>',
-      to: email,
-      subject: `Thank you for contacting us, ${name}!`,
-      text: `Dear ${name},\n\nWe received your message: "${subject}".\nOur team will contact you soon.\n\nSPEAKERSTORE Team`,
-    };
-
-    try {
-      const info = await sendMailAsync(mailOptions);
-      console.log("Email sent:", info.response);
-      return res.status(201).json({
-        message: "Contact saved and email sent.",
-        id: result[0].insertId,
-      });
-    } catch (mailErr) {
-      console.error("Mail error:", mailErr);
-      return res.status(201).json({
-        message: "Contact saved, but email not sent.",
-        id: result[0].insertId,
-      });
+    // Validate
+    if (!name || !email || !subject || !message) {
+      return res.status(400).json({ message: "Missing required fields." });
     }
-  } catch (err) {
-    console.error("DB error:", err);
-    return res.status(500).json({ message: "Internal server error." });
+
+    // Insert vào MySQL
+    const sql = `
+      INSERT INTO contact (name, email, subject, message, customer_id)
+      VALUES (?, ?, ?, ?, ?)
+    `;
+
+    db.query(sql, [name, email, subject, message, customer_id || null], (err, result) => {
+      if (err) {
+        console.error("❌ DB insert error:", err);
+        return res.status(500).json({ message: "Internal server error." });
+      }
+
+      // Trả response ngay, tránh 204
+      res.status(201).json({
+        message: "Contact saved successfully! You will receive an email shortly.",
+        id: result.insertId,
+      });
+
+      // Gửi mail async, không block response
+      const mailOptions = {
+        from: `"SPEAKERSTORE" <${process.env.MAIL_USER}>`,
+        to: email,
+        subject: `Thank you for contacting us, ${name}!`,
+        text: `Dear ${name},\n\nWe have received your message with the subject: "${subject}".\nOur team will get back to you as soon as possible.\n\nBest regards,\nSPEAKERSTORE Team`,
+      };
+
+      transporter.sendMail(mailOptions, (error, info) => {
+        if (error) {
+          console.error("❌ Error sending mail:", error);
+        } else {
+          console.log("📩 Email sent:", info.response);
+        }
+      });
+    });
+  } catch (error) {
+    console.error("❌ Unexpected error:", error);
+    return res.status(500).json({ message: "Unexpected server error." });
   }
 });
 
