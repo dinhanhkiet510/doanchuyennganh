@@ -89,8 +89,6 @@ export default function ChatbotWidget() {
         isAdminSender: false,
       });
 
-      // Hiển thị tin nhắn ngay lập tức
-      setMessages((prev) => [...prev, { role: "user", content: text }]);
     }
   };
 
