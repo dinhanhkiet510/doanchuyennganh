@@ -431,7 +431,7 @@ app.post("/checkout", async (req, res) => {
       }
     }
 
-    // ✅ Gửi email xác nhận
+    //Gửi email xác nhận
     const totalPrice = order_items.reduce((sum, item) => sum + (item.price ?? 0) * (item.quantity ?? 0), 0);
     let itemsHtml = order_items.map(item =>
       `<tr>
@@ -481,7 +481,6 @@ app.post("/checkout", async (req, res) => {
     res.status(500).json({ message: err.message || "Checkout failed" });
   }
 });
-
 
 // =================== CONTACT ===================
 app.post("api/contact", (req, res) => {
