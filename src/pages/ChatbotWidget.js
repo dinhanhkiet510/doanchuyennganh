@@ -80,8 +80,9 @@
         // Hiện tin nhắn user ngay lập tức
         setMessages((prev) => [...prev, { role: "user", content: text }]);
 
-        socket.emit("sendMessage", {
-          senderId: userId,
+       socket.emit("sendMessage", {
+          userId,        // id người dùng
+          role: "user",  // thêm role vào đây
           receiverId: 1, // ID admin cố định
           message: text,
         });
