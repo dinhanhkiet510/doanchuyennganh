@@ -54,11 +54,7 @@ function Header() {
           onMouseEnter={() => window.innerWidth > 768 && setDropdownOpen(true)}
           onMouseLeave={() => window.innerWidth > 768 && setDropdownOpen(false)}
         >
-<<<<<<< HEAD
-          <Link className="dropdown-toggle " onClick={() => setDropdownOpen(!dropdownOpen)}>
-=======
           <Link className="dropdown-toggle" onClick={() => setDropdownOpen(!dropdownOpen)}>
->>>>>>> 7d0f3db4e517d1cc4867303315c5ecef8e4fdf52
             PRODUCT
           </Link>
 
