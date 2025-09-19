@@ -741,7 +741,7 @@ app.post("/chat", async (req, res) => {
 
     // 2. Lấy sản phẩm từ MySQL
     const products = await query(
-      "SELECT id, name, description, price, stock, img, embedding FROM products"
+      "SELECT id, name, price, stock, img, embedding FROM products"
     );
 
     if (products.length === 0) {
