@@ -25,6 +25,10 @@ app.use(cors({
   methods: ["GET","POST","PUT","DELETE","OPTIONS"]
 }));
 
+app.options("*", (req, res) => {
+  res.sendStatus(200); // trả về OK cho preflight
+});
+
 // =================== DATABASE ===================
 let db;
 
