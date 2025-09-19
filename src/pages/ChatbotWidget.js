@@ -179,7 +179,7 @@
                 <div
                   key={i}
                   style={{
-                    textAlign: m.role === "customer" ? "right" : "left",
+                    textAlign: m.role === "user" ? "right" : "left",
                     marginBottom: 10,
                   }}
                 >
@@ -187,7 +187,7 @@
                     style={{
                       display: "inline-block",
                       backgroundColor:
-                        m.role === "customer"
+                        m.role === "user"
                           ? "#0d6efd"
                           : m.role === "admin"
                           ? "#198754"
