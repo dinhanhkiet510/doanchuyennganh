@@ -24,10 +24,6 @@ app.use(cors({
   allowedHeaders: ["Content-Type"],
   methods: ["GET","POST","PUT","DELETE","OPTIONS"]
 }));
-app.use((req, res, next) => {
-  console.log("Incoming request:", req.method, req.url);
-  next();
-});
 
 app.options("*", (req, res) => {
   res.sendStatus(200); // trả về OK cho preflight
@@ -809,8 +805,11 @@ app.post("/chat", async (req, res) => {
 
 
 // ---------------- SOCKET.IO ----------------
+// Map lưu userId -> socketId
+const onlineUsers = new Map();
+// Tạo server HTTP dựa trên express
 const server = http.createServer(app);
-
+// Khởi tạo io từ server HTTP
 const io = new Server(server, {
   cors: {
     origin: "https://doanchuyennganh.vercel.app",
@@ -818,32 +817,32 @@ const io = new Server(server, {
     credentials: true,
   },
 });
-
 io.on("connection", (socket) => {
   console.log("🔌 New client connected:", socket.id);
 
-  // User hoặc admin join room riêng theo userId
   socket.on("join", ({ userId, role }) => {
     if (!userId || !role) return;
-    const room = `user_${userId}`;
-    socket.join(room);
     socket.userId = userId;
     socket.role = role;
-    console.log(`${role} joined room ${room}`);
+    onlineUsers.set(userId, socket.id);
+    console.log(`${role} joined with ID: ${userId}`);
   });
 
-  // Gửi tin nhắn
   socket.on("sendMessage", async ({ receiverId, message }) => {
-    if (!socket.userId || !socket.role) return;
+    if (!socket.userId || !socket.role) {
+      console.log("User not joined, cannot send message");
+      return;
+    }
 
     const isAdminSender = socket.role === "admin";
 
     try {
-      // Lưu vào DB
       const result = await query(
         "INSERT INTO messages (sender_id, receiver_id, message, is_admin_sender) VALUES (?, ?, ?, ?)",
         [socket.userId, receiverId, message, isAdminSender]
       );
+
+      console.log("Message saved:", message, "ID:", result.insertId);
 
       const payload = {
         id: result.insertId,
@@ -854,11 +853,12 @@ io.on("connection", (socket) => {
         created_at: new Date(),
       };
 
-      // Gửi tin nhắn đến room của receiver
-      const room = `user_${receiverId}`;
-      io.to(room).emit("receiveMessage", payload);
-
-      // Gửi lại cho sender (hiển thị ngay)
+      // Gửi cho người nhận nếu online
+      const receiverSocketId = onlineUsers.get(receiverId);
+      if (receiverSocketId)
+        io.to(receiverSocketId).emit("receiveMessage", payload);
+      
+      // Gửi lại cho người gửi
       socket.emit("receiveMessage", payload);
     } catch (err) {
       console.error("❌ Error saving message:", err);
@@ -867,13 +867,15 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", () => {
     console.log("❌ Client disconnected:", socket.id);
+    if (socket.userId) onlineUsers.delete(socket.userId);
   });
 });
 
-// API lấy lịch sử chat của user
-app.get("/messages/:userId", async (req, res) => {
-  const { userId } = req.params;
-  if (!userId) return res.status(400).json({ error: "User ID required" });
+
+// API lấy toàn bộ chat giữa customer và admin
+app.get("/messages/:customerId", async (req, res) => {
+  const { customerId } = req.params;
+  if (!customerId) return res.status(400).json({ error: "Customer ID required" });
 
   try {
     const rows = await query(
@@ -881,7 +883,7 @@ app.get("/messages/:userId", async (req, res) => {
        FROM messages
        WHERE sender_id = ? OR receiver_id = ?
        ORDER BY created_at ASC`,
-      [userId, userId]
+      [customerId, customerId]
     );
     res.json(rows);
   } catch (err) {
