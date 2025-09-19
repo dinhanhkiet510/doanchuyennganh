@@ -65,6 +65,8 @@
       const text = input.trim();
       setInput("");
       if (mode === "ai") {
+        // Add user message trước
+        setMessages((prev) => [...prev, { role: "user", content: text }]);
         try {
           const res = await axios.post(`${process.env.REACT_APP_API_URL}/chat`, { message: text });
           setMessages((prev) => [...prev, { role: "ai", content: res.data.reply }]);
@@ -86,6 +88,8 @@
         });
         
         console.log("Gửi cho admin:", text);
+        // Hiện tin nhắn user ngay lập tức
+        setMessages((prev) => [...prev, { role: "user", content: text }]);
       }
     };
 
