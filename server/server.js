@@ -617,7 +617,7 @@ app.get("/customers", async (req, res) => {
   }
 });
 
-
+/*
 // =================== API cập nhật thông tin khách hàng ===================
 app.put("/api/customers/me", async (req, res) => {
   const id = req.session.user?.id;
@@ -668,9 +668,9 @@ app.put("/api/customers/me/password", async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 });
-
+*/
 // =================== API lấy đơn hàng của khách hàng ===================
-app.get("/api/orders/my-orders/test", async (req, res) => {
+app.get("/api/orders/my-orders/:customerId", async (req, res) => {
   const userId = req.session.user?.id;
   if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
