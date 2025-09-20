@@ -390,20 +390,20 @@ app.post("/checkout", async (req, res) => {
   try {
     await connection.beginTransaction(); // rollback thủ công khi stock không đủ, nhưng nó vẫn tiềm ẩn rủi ro. Nếu có lỗi xảy ra ở bước giữa (ví dụ: lỗi chèn order_items), các bản ghi đã thêm vào DB vẫn sẽ tồn tại.
 
-    // 1️⃣ Thêm checkout
+    // 1️ Thêm checkout
     const [checkoutResult] = await connection.execute(
       "INSERT INTO checkout (fullname, shipping_address, phone, email, customer_id) VALUES (?, ?, ?, ?, ?)",
       [fullname, shipping_address, phone, email, customer_id ?? null]
     );
 
-    // 2️⃣ Thêm order
+    // 2️ Thêm order
     const [orderResult] = await connection.execute(
       "INSERT INTO orders (customer_id, customer_name, employee_id, order_date, status) VALUES (?, ?, NULL, NOW(), ?)",
       [customer_id ?? null, fullname, 'pending']
     );
     const orderId = orderResult.insertId;
 
-    // 3️⃣ Thêm order_items & cập nhật stock
+    // 3️ Thêm order_items & cập nhật stock
     for (const item of order_items) {
       // Cập nhật stock trước để kiểm tra tính hợp lệ
       const [stockResult] = await connection.execute(
@@ -422,10 +422,10 @@ app.post("/checkout", async (req, res) => {
       );
     }
 
-    // 4️⃣ Commit transaction nếu mọi thứ đều thành công
+    // 4️ Commit transaction nếu mọi thứ đều thành công
     await connection.commit();
 
-    // 5️⃣ Gửi email xác nhận
+    // 5️ Gửi email xác nhận
     const totalPrice = order_items.reduce((sum, item) => sum + (item.price ?? 0) * (item.quantity ?? 0), 0);
     let itemsHtml = order_items.map(item =>
       `<tr>
@@ -481,54 +481,52 @@ app.post("/checkout", async (req, res) => {
 
 // =================== CONTACT ===================
 app.post("/api/contact", (req, res) => {
-  console.log("Body nhận được:", req.body);
-  const { name, email, subject, message, customer_id } = req.body;
+  console.log("Body nhận được:", req.body);
+  const { name, email, subject, message, customer_id } = req.body;
 
-  // Validate
-  if (!name || !email || !subject || !message) {
-    return res.status(400).json({ message: "Missing required fields." });
-  }
+  // 1. Validate (kiểm tra) dữ liệu
+  if (!name || !email || !subject || !message) {
+    return res.status(400).json({ message: "Missing required fields." });
+  }
 
-  const sql = `
-    INSERT INTO contact (name, email, subject, message, customer_id)
-    VALUES (?, ?, ?, ?, ?)
-  `;
+  const sql = `
+    INSERT INTO contact (name, email, subject, message, customer_id)
+    VALUES (?, ?, ?, ?, ?)
+  `;
 
-  db.query(
-    sql,
-    [name, email, subject, message, customer_id || null],
-    (err, result) => {
-      if (err) {
-        console.error(" DB insert error:", err);
-        return res.status(500).json({ message: "Internal server error." });
-      }
+  // 2. Lưu vào database và gửi phản hồi ngay lập tức cho client
+  db.query(
+    sql,
+    [name, email, subject, message, customer_id || null],
+    (err, result) => {
+      if (err) {
+        console.error(" DB insert error:", err);
+        return res.status(500).json({ message: "Internal server error." });
+      }
 
-      // Cấu hình email
-      const mailOptions = {
-        from: '"SPEAKERSTORE" <dinhanhkiet510@gmail.com>', // người gửi
-        to: email, // người nhận
-        subject: `Thank you for contacting us, ${name}!`,
-        text: `Dear ${name},\n\nWe have received your message with the subject: "${subject}".\nOur team will get back to you as soon as possible.\n\nBest regards,\nSPEAKERSTORE Team`,
-      };
+      // Phản hồi thành công cho client ngay sau khi lưu DB
+      res.status(201).json({
+        message: "Your message has been received and saved.",
+        id: result.insertId,
+      });
 
-      // Gửi email phản hồi
-      transporter.sendMail(mailOptions, (error, info) => {
-        if (error) {
-          console.error("Error sending mail:", error);
-          return res.status(201).json({
-            message: "Contact saved, but email not sent.",
-            id: result.insertId,
-          });
-        }
+      // 3. Gửi email xác nhận một cách bất đồng bộ
+      const mailOptions = {
+        from: '"SPEAKERSTORE" <dinhanhkiet510@gmail.com>',
+        to: email,
+        subject: `Thank you for contacting us, ${name}!`,
+        text: `Dear ${name},\n\nWe have received your message with the subject: "${subject}".\nOur team will get back to you as soon as possible.\n\nBest regards,\nSPEAKERSTORE Team`,
+      };
 
-        console.log("Email sent:", info.response);
-        return res.status(201).json({
-          message: "Contact saved and email sent.",
-          id: result.insertId,
-        });
-      });
-    }
-  );
+      transporter.sendMail(mailOptions, (error, info) => {
+        if (error) {
+          console.error("Error sending mail:", error);
+        } else {
+          console.log("Email sent:", info.response);
+        }
+      });
+    }
+  );
 });
 
 // =================== API admin lấy toàn bộ đơn hàng ===================
