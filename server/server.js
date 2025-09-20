@@ -180,7 +180,7 @@ const transporter = nodemailer.createTransport({
     pass: process.env.MAIL_PASS
   }
 });
-
+/*
 // =================== API trả về user cho React ===================
 app.get("/api/current_user", async (req, res) => {
   if (!req.session.user) return res.status(200).json({ user: null });
@@ -617,8 +617,8 @@ app.get("/customers", async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 });
+*/
 
-/*
 // =================== API cập nhật thông tin khách hàng ===================
 app.put("/api/customers/me", async (req, res) => {
   const id = req.session.user?.id;
@@ -943,7 +943,7 @@ app.get("/api/statistics/top-products", async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 });
-*/
+
 
 
 
