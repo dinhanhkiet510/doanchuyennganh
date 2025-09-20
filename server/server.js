@@ -827,23 +827,18 @@ io.on("connection", (socket) => {
     onlineUsers.set(userId, socket.id);
     console.log(`${role} joined with ID: ${userId}`);
   });
-
   socket.on("sendMessage", async ({ receiverId, message }) => {
     if (!socket.userId || !socket.role) {
       console.log("User not joined, cannot send message");
       return;
     }
-
     const isAdminSender = socket.role === "admin";
-
     try {
       const result = await query(
         "INSERT INTO messages (sender_id, receiver_id, message, is_admin_sender) VALUES (?, ?, ?, ?)",
         [socket.userId, receiverId, message, isAdminSender]
       );
-
       console.log("Message saved:", message, "ID:", result.insertId);
-
       const payload = {
         id: result.insertId,
         senderId: socket.userId,
@@ -852,19 +847,14 @@ io.on("connection", (socket) => {
         message,
         created_at: new Date(),
       };
-
       // Gửi cho người nhận nếu online
       const receiverSocketId = onlineUsers.get(receiverId);
       if (receiverSocketId)
         io.to(receiverSocketId).emit("receiveMessage", payload);
-      
-      // Gửi lại cho người gửi
-      socket.emit("receiveMessage", payload);
     } catch (err) {
       console.error("❌ Error saving message:", err);
     }
   });
-
   socket.on("disconnect", () => {
     console.log("❌ Client disconnected:", socket.id);
     if (socket.userId) onlineUsers.delete(socket.userId);
