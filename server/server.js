@@ -220,7 +220,7 @@ app.post("/api/logout", async (req, res) => {
 
 
 // =================== PRODUCTS ===================
-/*
+
 // Lấy tất cả sản phẩm
 app.get("/products", async (req, res) => {
   try {
@@ -317,7 +317,7 @@ app.delete("/products/:id", async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 });
-*/
+
 
 // =================== AUTH ===================
 
@@ -722,7 +722,7 @@ app.get("/api/orders/my-orders/:customerId", async (req, res) => {
   }
 });
 
-
+/*
 // =================== API Chatbot với RAG ===================
 app.post("/chat", async (req, res) => {
   try {
@@ -943,7 +943,7 @@ app.get("/api/statistics/top-products", async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 });
-
+*/
 
 
 
