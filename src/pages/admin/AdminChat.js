@@ -102,8 +102,7 @@ export default function AdminChat() {
       message: newMsg,
       isAdminSender: true,      //để server biết lưu flag
     });
-
-    setMessages((prev) => [...prev, msg]);
+    
     setNewMsg("");
   };
 

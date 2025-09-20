@@ -801,11 +801,8 @@ app.post("/chat", async (req, res) => {
 
 
 // ---------------- SOCKET.IO ----------------
-// Map lưu userId -> socketId
 const onlineUsers = new Map();
-// Tạo server HTTP dựa trên express
 const server = http.createServer(app);
-// Khởi tạo io từ server HTTP
 const io = new Server(server, {
   cors: {
     origin: "https://doanchuyennganh.vercel.app",
@@ -813,18 +810,25 @@ const io = new Server(server, {
     credentials: true,
   },
 });
+
 io.on("connection", (socket) => {
   console.log("🔌 New client connected:", socket.id);
 
+  // Khi user join
   socket.on("join", ({ userId, role }) => {
     if (!userId || !role) return;
     socket.userId = userId;
     socket.role = role;
-    onlineUsers.set(userId, socket.id);
-    console.log(`${role} joined with ID: ${userId}`);
+
+    // Key theo role+id (tránh trùng key nếu id=1 ở cả admin và customer)
+    const key = `${role}-${userId}`;
+    onlineUsers.set(key, socket.id);
+
+    console.log(`${role} joined with ID: ${userId}, socket: ${socket.id}`);
   });
 
-  socket.on("sendMessage", async ({ receiverId, message }) => {
+  // Khi gửi message
+  socket.on("sendMessage", async ({ receiverId, receiverRole, message }) => {
     if (!socket.userId || !socket.role) {
       console.log("User not joined, cannot send message");
       return;
@@ -838,32 +842,43 @@ io.on("connection", (socket) => {
         [socket.userId, receiverId, message, isAdminSender]
       );
 
-      console.log("Message saved:", message, "ID:", result.insertId);
-
       const payload = {
         id: result.insertId,
         senderId: socket.userId,
         receiverId,
-        senderRole: isAdminSender ? "admin" : "user",
+        senderRole: isAdminSender ? "admin" : "customer",
         message,
         created_at: new Date(),
       };
 
-      // Gửi cho người nhận nếu online
-      const receiverSocketId = onlineUsers.get(receiverId);
-      if (receiverSocketId)
+      console.log("💬 Message saved & emitting:", payload);
+
+      // SocketId người nhận
+      const receiverKey = `${receiverRole}-${receiverId}`;
+      const receiverSocketId = onlineUsers.get(receiverKey);
+
+      if (receiverSocketId) {
         io.to(receiverSocketId).emit("receiveMessage", payload);
-      
-      // Gửi lại cho người gửi
-      socket.emit("receiveMessage", payload);
+      }
+
+      // Phát lại cho chính sender (dùng io.to thay vì socket.emit để đồng bộ nhiều tab)
+      const senderKey = `${socket.role}-${socket.userId}`;
+      const senderSocketId = onlineUsers.get(senderKey);
+      if (senderSocketId) {
+        io.to(senderSocketId).emit("receiveMessage", payload);
+      }
     } catch (err) {
       console.error("❌ Error saving message:", err);
     }
   });
 
+  // Khi disconnect
   socket.on("disconnect", () => {
     console.log("❌ Client disconnected:", socket.id);
-    if (socket.userId) onlineUsers.delete(socket.userId);
+    if (socket.userId && socket.role) {
+      const key = `${socket.role}-${socket.userId}`;
+      onlineUsers.delete(key);
+    }
   });
 });
 
