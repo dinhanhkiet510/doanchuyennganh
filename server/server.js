@@ -617,6 +617,7 @@ app.get("/customers", async (req, res) => {
   }
 });
 
+/*
 // =================== API cập nhật thông tin khách hàng ===================
 app.put("/api/customers/me", async (req, res) => {
   const id = req.session.user?.id;
@@ -940,6 +941,8 @@ app.get("/api/statistics/top-products", async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 });
+
+*/
 
 // Khởi động server
 async function startServer() {
