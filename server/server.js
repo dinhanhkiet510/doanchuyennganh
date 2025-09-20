@@ -851,6 +851,8 @@ io.on("connection", (socket) => {
       const receiverSocketId = onlineUsers.get(receiverId);
       if (receiverSocketId)
         io.to(receiverSocketId).emit("receiveMessage", payload);
+
+      io.to(socket.id).emit("receiveMessage", payload);
     } catch (err) {
       console.error("❌ Error saving message:", err);
     }
