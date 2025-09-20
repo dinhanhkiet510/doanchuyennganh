@@ -220,7 +220,7 @@ app.post("/api/logout", async (req, res) => {
 
 
 // =================== PRODUCTS ===================
-
+/*
 // Lấy tất cả sản phẩm
 app.get("/products", async (req, res) => {
   try {
@@ -317,7 +317,8 @@ app.delete("/products/:id", async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 });
-/*
+*/
+
 // =================== AUTH ===================
 
 // Đăng ký
@@ -617,7 +618,7 @@ app.get("/customers", async (req, res) => {
   }
 });
 
-*/
+
 // =================== API cập nhật thông tin khách hàng ===================
 app.put("/api/customers/me", async (req, res) => {
   const id = req.session.user?.id;
