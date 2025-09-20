@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import io from "socket.io-client";
 import axios from "axios";
 
+// Kết nối socket
 const socket = io("https://doanchuyennganh.onrender.com");
 
 export default function AdminChat() {
@@ -11,13 +12,13 @@ export default function AdminChat() {
   const [newMsg, setNewMsg] = useState("");
   const messagesEndRef = useRef(null);
 
-  // Giữ selectedCustomer để dùng trong socket.on
-  const selectedCustomerRef = useRef(selectedCustomer);
+  // Lưu selectedCustomer cho socket listener
+  const selectedCustomerRef = useRef(null);
   useEffect(() => {
     selectedCustomerRef.current = selectedCustomer;
   }, [selectedCustomer]);
 
-  // Join socket khi load
+  // Kết nối socket + listener
   useEffect(() => {
     socket.emit("join", { userId: 1, role: "admin" });
 
@@ -26,13 +27,12 @@ export default function AdminChat() {
 
       if (senderRole === "customer") {
         if (currentCustomer && senderId === currentCustomer.id) {
-          // Đang mở đúng customer → thêm vào messages
           setMessages((prev) => [
             ...prev,
             { sender_id: senderId, sender_role: senderRole, message },
           ]);
         } else {
-          // Không mở → đánh dấu customer có tin nhắn mới
+          // Gắn badge tin nhắn mới
           setCustomers((prev) =>
             prev.map((c) =>
               c.id === senderId ? { ...c, hasNewMessage: true } : c
@@ -42,7 +42,6 @@ export default function AdminChat() {
       }
 
       if (senderRole === "admin") {
-        // Tin nhắn admin gửi → thêm luôn vào messages
         setMessages((prev) => [
           ...prev,
           { sender_id: senderId, sender_role: senderRole, message },
@@ -55,8 +54,7 @@ export default function AdminChat() {
     };
   }, []);
 
-
-  // Scroll xuống cuối khi có tin nhắn mới
+  // Auto scroll xuống cuối khi có tin nhắn
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -64,12 +62,12 @@ export default function AdminChat() {
   // Lấy danh sách khách hàng
   useEffect(() => {
     axios
-      .get(`https://doanchuyennganh.onrender.com/customers`)
+      .get("https://doanchuyennganh.onrender.com/customers")
       .then((res) => setCustomers(res.data))
-      .catch((err) => console.error("Lấy khách hàng lỗi:", err));
+      .catch((err) => console.error("Lỗi lấy khách hàng:", err));
   }, []);
 
-  // Chọn customer
+  // Chọn customer và load lịch sử chat
   const selectCustomer = async (customer) => {
     setSelectedCustomer(customer);
     try {
@@ -84,7 +82,7 @@ export default function AdminChat() {
         }))
       );
     } catch (err) {
-      console.error("Lấy chat lỗi:", err);
+      console.error("Lỗi lấy chat:", err);
       setMessages([]);
     }
   };
@@ -93,16 +91,15 @@ export default function AdminChat() {
   const sendMessage = () => {
     if (!selectedCustomer || !newMsg.trim()) return;
 
-    // Emit socket với admin -> customer
     socket.emit("sendMessage", {
-      senderId: 1,              //ID admin cố định trong DB
+      senderId: 1, // ID admin cố định
       senderRole: "admin",
       receiverId: selectedCustomer.id,
       receiverRole: "customer",
       message: newMsg,
-      isAdminSender: true,      //để server biết lưu flag
+      isAdminSender: true,
     });
-    
+
     setNewMsg("");
   };
 
@@ -119,14 +116,17 @@ export default function AdminChat() {
             <li
               key={c.id}
               className={`list-group-item d-flex align-items-center justify-content-between ${
-                selectedCustomer?.id === c.id ? "active bg-primary text-white" : ""
+                selectedCustomer?.id === c.id
+                  ? "active bg-primary text-white"
+                  : ""
               }`}
               style={{ cursor: "pointer" }}
               onClick={() => {
                 selectCustomer(c);
-                // Reset trạng thái có tin nhắn mới
                 setCustomers((prev) =>
-                  prev.map((x) => (x.id === c.id ? { ...x, hasNewMessage: false } : x))
+                  prev.map((x) =>
+                    x.id === c.id ? { ...x, hasNewMessage: false } : x
+                  )
                 );
               }}
             >
