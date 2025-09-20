@@ -617,7 +617,7 @@ app.get("/customers", async (req, res) => {
   }
 });
 
-/*
+
 // =================== API cập nhật thông tin khách hàng ===================
 app.put("/api/customers/me", async (req, res) => {
   const id = req.session.user?.id;
@@ -721,6 +721,8 @@ app.get("/api/orders/my-orders/:customerId", async (req, res) => {
   }
 });
 
+
+/*
 // =================== API Chatbot với RAG ===================
 app.post("/chat", async (req, res) => {
   try {
@@ -943,6 +945,7 @@ app.get("/api/statistics/top-products", async (req, res) => {
 });
 
 */
+
 
 // Khởi động server
 async function startServer() {
