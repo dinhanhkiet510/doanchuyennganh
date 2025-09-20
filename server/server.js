@@ -481,52 +481,60 @@ app.post("/checkout", async (req, res) => {
 
 // =================== CONTACT ===================
 app.post("/api/contact", (req, res) => {
-  console.log("Body nhận được:", req.body);
-  const { name, email, subject, message, customer_id } = req.body;
+  console.log("-> 1. Received POST request to /api/contact");
+  const { name, email, subject, message, customer_id } = req.body;
 
-  // 1. Validate (kiểm tra) dữ liệu
-  if (!name || !email || !subject || !message) {
-    return res.status(400).json({ message: "Missing required fields." });
-  }
+  // 1. Validate data
+  if (!name || !email || !subject || !message) {
+    console.error("-> 2. Validation failed: Missing required fields.");
+    return res.status(400).json({ message: "Missing required fields." });
+  }
 
-  const sql = `
-    INSERT INTO contact (name, email, subject, message, customer_id)
-    VALUES (?, ?, ?, ?, ?)
-  `;
+  const sql = `
+    INSERT INTO contact (name, email, subject, message, customer_id)
+    VALUES (?, ?, ?, ?, ?)
+  `;
 
-  // 2. Lưu vào database và gửi phản hồi ngay lập tức cho client
-  db.query(
-    sql,
-    [name, email, subject, message, customer_id || null],
-    (err, result) => {
-      if (err) {
-        console.error(" DB insert error:", err);
-        return res.status(500).json({ message: "Internal server error." });
-      }
+  // 2. Insert into database
+  try {
+    db.query(
+      sql,
+      [name, email, subject, message, customer_id || null],
+      (err, result) => {
+        if (err) {
+          console.error("-> 3. Database insert error:", err);
+          return res.status(500).json({ message: "Internal server error." });
+        }
 
-      // Phản hồi thành công cho client ngay sau khi lưu DB
-      res.status(201).json({
-        message: "Your message has been received and saved.",
-        id: result.insertId,
-      });
+        // Send a success response immediately after DB operation
+        console.log("-> 4. Successfully inserted into DB. Sending response to client.");
+        res.status(201).json({
+          message: "Your message has been received and saved.",
+          id: result.insertId,
+        });
 
-      // 3. Gửi email xác nhận một cách bất đồng bộ
-      const mailOptions = {
-        from: '"SPEAKERSTORE" <dinhanhkiet510@gmail.com>',
-        to: email,
-        subject: `Thank you for contacting us, ${name}!`,
-        text: `Dear ${name},\n\nWe have received your message with the subject: "${subject}".\nOur team will get back to you as soon as possible.\n\nBest regards,\nSPEAKERSTORE Team`,
-      };
+        // 3. Asynchronously send email confirmation
+        const mailOptions = {
+          from: '"SPEAKERSTORE" <dinhanhkiet510@gmail.com>',
+          to: email,
+          subject: `Thank you for contacting us, ${name}!`,
+          text: `Dear ${name},\n\nWe have received your message with the subject: "${subject}".\nOur team will get back to you as soon as possible.\n\nBest regards,\nSPEAKERSTORE Team`,
+        };
 
-      transporter.sendMail(mailOptions, (error, info) => {
-        if (error) {
-          console.error("Error sending mail:", error);
-        } else {
-          console.log("Email sent:", info.response);
-        }
-      });
-    }
-  );
+        transporter.sendMail(mailOptions, (error, info) => {
+          if (error) {
+            console.error("-> 5. Error sending mail:", error);
+          } else {
+            console.log("-> 5. Email sent successfully:", info.response);
+          }
+        });
+      }
+    );
+  } catch (error) {
+    // Catch any unexpected errors before DB query
+    console.error("-> An unexpected error occurred:", error);
+    res.status(500).json({ message: "An unexpected error occurred." });
+  }
 });
 
 // =================== API admin lấy toàn bộ đơn hàng ===================
