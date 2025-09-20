@@ -84,7 +84,6 @@
           message: text,
           isAdminSender: false,
         });
-        setMessages((prev) => [...prev, { role: "customer", content: text }]);
       }
     };
 
