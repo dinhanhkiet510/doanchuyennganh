@@ -27,7 +27,7 @@
     useEffect(() => {
       if (!userId) return;
 
-      socket.emit("join", { userId, role: "customer" });
+      socket.emit("join", { userId, role: "user" });
 
       socket.on("receiveMessage", ({ senderId, receiverId, senderRole, message }) => {
         // Không cần check receiverId === userId nữa
@@ -48,7 +48,7 @@
           .get(`${process.env.REACT_APP_API_URL}/messages/${userId}`)
           .then((res) => {
             const mapped = res.data.map((m) => ({
-              role: m.is_admin_sender ? "admin" : "customer",
+              role: m.is_admin_sender ? "admin" : "user",
               content: m.message,
             }));
             setMessages(mapped);
@@ -84,7 +84,7 @@
           message: text,
           isAdminSender: false,
         });
-        setMessages((prev) => [...prev, { role: "customer", content: text }]);
+        
       }
     };
 
@@ -178,7 +178,7 @@
                 <div
                   key={i}
                   style={{
-                    textAlign: m.role === "customer" ? "right" : "left",
+                    textAlign: m.role === "user" ? "right" : "left",
                     marginBottom: 10,
                   }}
                 >
@@ -186,7 +186,7 @@
                     style={{
                       display: "inline-block",
                       backgroundColor:
-                        m.role === "customer"
+                        m.role === "user"
                           ? "#0d6efd"
                           : m.role === "admin"
                           ? "#198754"
