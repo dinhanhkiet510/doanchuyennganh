@@ -668,7 +668,7 @@ app.put("/api/customers/me/password", async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 });
-*/
+
 // =================== API lấy đơn hàng của khách hàng ===================
 app.get("/api/orders/my-orders/:customerId", async (req, res) => {
   const userId = req.session.user?.id;
@@ -720,7 +720,7 @@ app.get("/api/orders/my-orders/:customerId", async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 });
-
+*/
 
 // =================== API Chatbot với RAG ===================
 app.post("/chat", async (req, res) => {
