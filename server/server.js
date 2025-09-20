@@ -41,7 +41,7 @@ async function initDB() {
     port: process.env.MYSQLPORT || 3306,
     ssl: { rejectUnauthorized: false }
   });
-  console.log("✅ MySQL connected");
+  console.log(" MySQL connected");
 }
 
 async function query(sql, params = []) {
@@ -180,7 +180,8 @@ const transporter = nodemailer.createTransport({
     pass: process.env.MAIL_PASS
   }
 });
-/*
+ 
+
 // =================== API trả về user cho React ===================
 app.get("/api/current_user", async (req, res) => {
   if (!req.session.user) return res.status(200).json({ user: null });
@@ -220,7 +221,6 @@ app.post("/api/logout", async (req, res) => {
 
 
 // =================== PRODUCTS ===================
-
 // Lấy tất cả sản phẩm
 app.get("/products", async (req, res) => {
   try {
@@ -617,7 +617,6 @@ app.get("/customers", async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 });
-*/
 
 // =================== API cập nhật thông tin khách hàng ===================
 app.put("/api/customers/me", async (req, res) => {
@@ -721,7 +720,6 @@ app.get("/api/orders/my-orders/:customerId", async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 });
-
 
 // =================== API Chatbot với RAG ===================
 app.post("/chat", async (req, res) => {
@@ -943,9 +941,6 @@ app.get("/api/statistics/top-products", async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 });
-
-
-
 
 // Khởi động server
 async function startServer() {

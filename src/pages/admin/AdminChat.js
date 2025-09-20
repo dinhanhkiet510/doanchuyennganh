@@ -95,16 +95,15 @@ export default function AdminChat() {
 
     // Emit socket với admin -> customer
     socket.emit("sendMessage", {
-      senderId: 1,              // ✅ ID admin cố định trong DB
+      senderId: 1,              //ID admin cố định trong DB
       senderRole: "admin",
       receiverId: selectedCustomer.id,
       receiverRole: "customer",
       message: newMsg,
-      isAdminSender: true,      // ✅ để server biết lưu flag
+      isAdminSender: true,      //để server biết lưu flag
     });
 
-
-    // ❌ Không push vào messages thủ công nữa
+    setMessages((prev) => [...prev, msg]);
     setNewMsg("");
   };
 
