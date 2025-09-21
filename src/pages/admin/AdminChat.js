@@ -75,10 +75,10 @@ export default function AdminChat() {
         `${process.env.REACT_APP_API_URL}/messages/${customer.id}`
       );
       setMessages(
-        res.data.map((msg) => ({
-          sender_id: msg.is_admin_sender ? "admin" : customer.id,
-          sender_role: msg.is_admin_sender ? "admin" : "customer",
-          message: msg.message,
+        res.data.map((m) => ({
+          sender_id: m.is_admin_sender ? "admin" : customer.id,
+          sender_role: m.is_admin_sender ? "admin" : "customer",
+          message: m.message,
         }))
       );
     } catch (err) {
