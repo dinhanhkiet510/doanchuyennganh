@@ -32,7 +32,6 @@ export default function AdminChat() {
             { sender_id: senderId, sender_role: senderRole, message },
           ]);
         } else {
-          // Gắn badge tin nhắn mới
           setCustomers((prev) =>
             prev.map((c) =>
               c.id === senderId ? { ...c, hasNewMessage: true } : c
@@ -99,6 +98,12 @@ export default function AdminChat() {
       message: newMsg,
       isAdminSender: true,
     });
+
+    // Hiển thị ngay bên admin (không cần reload)
+    setMessages((prev) => [
+      ...prev,
+      { sender_id: 1, sender_role: "admin", message: newMsg },
+    ]);
 
     setNewMsg("");
   };
