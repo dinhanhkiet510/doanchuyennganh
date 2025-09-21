@@ -9,16 +9,16 @@ export default function AdminChat() {
   const [customers, setCustomers] = useState([]);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [messages, setMessages] = useState([]);
-  const [newMsg, setNewMsg] = useState("");
+  const [messageInput, setMessageInput] = useState("");
   const messagesEndRef = useRef(null);
 
-  // Lưu selectedCustomer cho socket listener
+  // Giữ selectedCustomer cho socket listener
   const selectedCustomerRef = useRef(null);
   useEffect(() => {
     selectedCustomerRef.current = selectedCustomer;
   }, [selectedCustomer]);
 
-  // Kết nối socket + listener
+  // Kết nối socket + lắng nghe tin nhắn
   useEffect(() => {
     socket.emit("join", { userId: 1, role: "admin" });
 
@@ -53,7 +53,7 @@ export default function AdminChat() {
     };
   }, []);
 
-  // Auto scroll xuống cuối khi có tin nhắn
+  // Tự động scroll xuống cuối khi có tin nhắn
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -88,24 +88,24 @@ export default function AdminChat() {
 
   // Gửi tin nhắn
   const sendMessage = () => {
-    if (!selectedCustomer || !newMsg.trim()) return;
+    if (!selectedCustomer || !messageInput.trim()) return;
 
     socket.emit("sendMessage", {
       senderId: 1, // ID admin cố định
       senderRole: "admin",
       receiverId: selectedCustomer.id,
       receiverRole: "customer",
-      message: newMsg,
+      message: messageInput,
       isAdminSender: true,
     });
 
-    // Hiển thị ngay bên admin (không cần reload)
+    // Hiển thị ngay bên admin
     setMessages((prev) => [
       ...prev,
-      { sender_id: 1, sender_role: "admin", message: newMsg },
+      { sender_id: 1, sender_role: "admin", message: messageInput },
     ]);
 
-    setNewMsg("");
+    setMessageInput("");
   };
 
   return (
@@ -184,8 +184,8 @@ export default function AdminChat() {
         {/* Ô nhập tin nhắn */}
         <div className="d-flex p-3 border-top bg-white">
           <input
-            value={newMsg}
-            onChange={(e) => setNewMsg(e.target.value)}
+            value={messageInput}
+            onChange={(e) => setMessageInput(e.target.value)}
             className="form-control me-2 shadow-sm"
             placeholder="Nhập tin nhắn..."
             onKeyDown={(e) => e.key === "Enter" && sendMessage()}
